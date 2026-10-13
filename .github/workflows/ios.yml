@@ -342,7 +342,10 @@ jobs:
       - name: Build VM libs (cldc / pcsl / javacall / midp)
         env:
           THEOS: ${{ github.workspace }}/theos
-        run: ./build-ios-cldc.sh 2>&1 | tee build-vm.log
+        run: |
+          set -o pipefail      # otherwise tee hides a failing build
+          chmod +x build-ios-cldc.sh
+          bash ./build-ios-cldc.sh 2>&1 | tee build-vm.log
 
       - name: Build .deb + .app via Theos
         env:
