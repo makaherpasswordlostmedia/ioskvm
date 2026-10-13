@@ -256,7 +256,7 @@ javacall_result javacall_socket_open_finish(void *handle, void *context) {
         	    p->readpos = 0;
         	    p->writepos = 0;
         	    p->status = 1;
-        	    p->fd = handle;
+        	    p->fd = (int)(long)handle;
         	    p->pending_socket_event = 0;
 #ifdef DEBUG_JAVACALL_NETWORK
         	    socket_open_count++;
@@ -395,7 +395,7 @@ static int socket_read_thread(SceSize args, void *argp) {
                                            if (status > 0) {
         		        	            p->pending_socket_event = 1;
         		        	        }
-        		        	        javanotify_socket_event(JAVACALL_EVENT_SOCKET_RECEIVE, sock, status>=0?JAVACALL_OK:JAVACALL_FAIL);
+        		        	        javanotify_socket_event(JAVACALL_EVENT_SOCKET_RECEIVE, (javacall_handle)(long)sock, status>=0?JAVACALL_OK:JAVACALL_FAIL);
         		        	    }
         		        	}
                             }
@@ -408,6 +408,7 @@ static int socket_read_thread(SceSize args, void *argp) {
 #endif
         }
     }
+    return 0;
 }
 
 /**
@@ -477,7 +478,7 @@ javacall_result javacall_socket_read_finish(void *handle,unsigned char *pData,in
 static SceUInt socket_write_retey(void *common)
 {
 	int sock = (int)common;
-	javanotify_socket_event(JAVACALL_EVENT_SOCKET_SEND, sock, JAVACALL_OK);
+	javanotify_socket_event(JAVACALL_EVENT_SOCKET_SEND, (javacall_handle)(long)sock, JAVACALL_OK);
 	return 0;
 }
 

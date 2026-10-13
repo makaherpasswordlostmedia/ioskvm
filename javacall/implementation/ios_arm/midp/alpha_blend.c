@@ -13,6 +13,14 @@ const javacall_pixel _sab_bluemask = 0x1f;
 // Blends preshifted/separated color in _r, _g, _b onto tgt according to
 // intensity (0 to 255). Note: do not call for 0 or 255 (pure intensities)
 // this is inefficient. See the ALPHA_BLEND macro for filtering these out.
+/* C99: must be declared before use and be static inline (plain inline emits no symbol) */
+static inline void blend_component(unsigned char alpha_intensity,
+	unsigned char n_alpha_intensity,
+	javacall_pixel color_c,
+	javacall_pixel tgt_cpy,
+	javacall_pixel* tgt,
+	javacall_pixel cmask);
+
 void alpha_blend_smooth(unsigned char alpha_intensity,
 	javacall_pixel color_r,
 	javacall_pixel color_g,
@@ -34,7 +42,7 @@ void alpha_blend_smooth(unsigned char alpha_intensity,
 // dividing by 255, but the shift is faster. Note also that since direct copies (for pure
 // intensities) are done short circuit, we still do get true colours at either end of
 // the blend--just miss a few values just beneath full intensity. Should be imperceptible.
-inline void blend_component(unsigned char alpha_intensity,
+static inline void blend_component(unsigned char alpha_intensity,
 	unsigned char n_alpha_intensity,
 	javacall_pixel color_c,
 	javacall_pixel tgt_cpy,

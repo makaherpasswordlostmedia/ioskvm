@@ -35,7 +35,7 @@ extern "C" {
     
 #include "javacall_lifecycle.h"
 
-#include "pspthreadman.h"
+#include "psp_shim.h"
 
 
 
