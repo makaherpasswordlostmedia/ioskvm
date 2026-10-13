@@ -39,7 +39,7 @@ endif
 
 include $(JAVACALL_DIR)/build/common.gmk
 
-TEMP=$(patsubst %.c,%.o,$(PORTING_SOURCE))
+TEMP=$(patsubst %.m,%.o,$(patsubst %.c,%.o,$(PORTING_SOURCE)))
 ifneq ($(FILTER_OBJECTS)x,x)
 PORTING_OBJECTS+=$(filter-out $(FILTER_OBJECTS),$(TEMP))
 else # ifneq ($(FILTER_OBJECTS)x,x)
@@ -71,6 +71,11 @@ javacall_lib: $(NOTIFIERS_LIB) $(JAVACALL_OUTPUT_LIB_DIR)/libjavacall$(BUILD_EXT
 $(JAVACALL_OUTPUT_OBJ_DIR)/%.o: %.c
 	@echo "...compiling: $@"
 	@$(COMPILE.c) $(OUTPUT_OPTION) $<
+
+# Objective-C sources (iOS AVFoundation media backend)
+$(JAVACALL_OUTPUT_OBJ_DIR)/%.o: %.m
+	@echo "...compiling (objc): $@"
+	@$(CC) $(CFLAGS) $(CPPFLAGS) -fobjc-arc -x objective-c -c $(OUTPUT_OPTION) $<
 
 $(JAVACALL_OUTPUT_LIB_DIR)/libjavacall$(BUILD_EXT).so: \
 	$(patsubst %,$(JAVACALL_OUTPUT_OBJ_DIR)/%,$(PORTING_OBJECTS)) \
