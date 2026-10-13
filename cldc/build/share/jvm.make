@@ -1499,6 +1499,17 @@ ifeq ($(IOS_TARGET)$(IsTarget),truetrue)
  LIBMGR_gcc        = $(IOS_AR)
 endif
 
+# iOS cross build: the host tools (romgen/loopgen) must be 32-bit so the generated ROM image
+# has 32-bit pointers/offsets matching armv7. Needs gcc-multilib / g++-multilib on the build machine.
+ifeq ($(IOS_TARGET),true)
+ifneq ($(IsTarget),true)
+ CPP_gcc           = g++ -m32
+ CC_gcc            = gcc -m32
+ LINK_gcc          = g++ -m32
+ ASM_gcc           = as --32
+endif
+endif
+
 LIB_FLAGS          = cqs
 
 ifeq ($(os), darwin)
