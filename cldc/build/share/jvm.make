@@ -1490,6 +1490,15 @@ else
 
 endif
 
+# iOS cross build (javacall_ios_gcc): target objects use clang from the Theos/Xcode toolchain
+ifeq ($(IOS_TARGET)$(IsTarget),truetrue)
+ CPP_gcc           = $(IOS_CXX)
+ CC_gcc            = $(IOS_CC)
+ LINK_gcc          = $(IOS_CXX)
+ ASM_gcc           = $(IOS_CC) -c
+ LIBMGR_gcc        = $(IOS_AR)
+endif
+
 LIB_FLAGS          = cqs
 
 ifeq ($(os), darwin)
