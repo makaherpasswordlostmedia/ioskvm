@@ -32,6 +32,14 @@
  */
 
 #include <limits.h>
+#include <strings.h>
+/* Win32/PSP-isms used by shared javacall code */
+#ifndef stricmp
+#define stricmp  strcasecmp
+#endif
+#ifndef strnicmp
+#define strnicmp strncasecmp
+#endif
 #ifndef PATH_MAX
 #define PATH_MAX 1024
 #endif
