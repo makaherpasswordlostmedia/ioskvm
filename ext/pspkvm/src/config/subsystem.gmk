@@ -38,7 +38,11 @@ vpath % $(PSPKVM_EXT_DIR)/src/native/share
 ifeq ($(TARGET_DEVICE), psp)
 vpath % $(PSPKVM_EXT_DIR)/src/native/psp
 else
+ifeq ($(TARGET_DEVICE), ios)
+vpath % $(PSPKVM_EXT_DIR)/src/native/ios
+else
 vpath % $(PSPKVM_EXT_DIR)/src/native/stub
+endif
 endif
 
 #
@@ -53,6 +57,10 @@ SUBSYSTEM_PSPKVM_EXT_NATIVE_FILES += \
     keymapinfo.c
 
 ifeq ($(TARGET_DEVICE), psp)
+SUBSYSTEM_PSPKVM_EXT_NATIVE_FILES += \
+    vmsettings_store.cpp
+endif
+ifeq ($(TARGET_DEVICE), ios)
 SUBSYSTEM_PSPKVM_EXT_NATIVE_FILES += \
     vmsettings_store.cpp
 endif
