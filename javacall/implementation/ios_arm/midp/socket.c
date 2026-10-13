@@ -100,7 +100,7 @@ static volatile read_buffer buffer_list[MAX_SOCK_NUM];
 int __i__; \
 p = NULL; \
 for  (__i__ = 0; __i__ < MAX_SOCK_NUM; __i__ ++) { \
-	if (buffer_list[__i__].fd == d) {p = &buffer_list[__i__]; break;} \
+	if (buffer_list[__i__].fd == (int)(long)(d)) {p = (read_buffer*)&buffer_list[__i__]; break;} \
 } \
 }
 
