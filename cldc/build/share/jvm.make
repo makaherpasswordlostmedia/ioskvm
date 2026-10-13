@@ -1606,7 +1606,12 @@ CPP_FLAGS_EXPORT         = $(CPP_DEF_FLAGS) $(CPLUSPLUS_FLAGS)
 CPP_FLAGS                = $(CPP_FLAGS_EXPORT) $(CPP_INCLUDE_DIRS)
 
 ifneq ($(ENABLE_COMPILATION_WARNINGS), true)
+# iOS build: this 2005-era code produces warnings under modern gcc/clang; do not turn them into errors
+ifneq ($(IOS_TARGET),true)
 CPP_FLAGS               += -Werror
+else
+CPP_FLAGS               += -fpermissive -Wno-narrowing -Wno-write-strings
+endif
 endif
 
 LINK_OPT_FLAGS_debug    = $(DEBUG_SYMBOLS_FLAGS)
