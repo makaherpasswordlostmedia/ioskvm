@@ -41,11 +41,19 @@ else
 endif
 
 GCC_VERSION	=
+ifdef IOS_CC
+# iOS cross build: vanilla clang from the Theos toolchain (see build-ios-cldc.sh)
+CC		= $(IOS_CC)
+CPP		= $(IOS_CXX)
+LD		= $(IOS_CXX)
+AR		= $(IOS_AR) -rc
+else
 #workaround: psptoolchain with gcc 4.3.2
 CC		= $(GNU_TOOLS_BINDIR)../../bin/psp-gcc$(GCC_VERSION)
 CPP		= $(GNU_TOOLS_BINDIR)../../bin/psp-g++$(GCC_VERSION)
 LD		= $(GNU_TOOLS_BINDIR)../../bin/psp-g++$(GCC_VERSION)
 AR		= $(GNU_TOOLS_BINDIR)../../bin/psp-ar -rc
+endif
 
 CC_OUTPUT=-o 
 AR_OUTPUT=
@@ -63,7 +71,11 @@ ifeq ($(USE_DEBUG), true)
 CFLAGS+=-g
 else
 ifneq ($(USE_GCOV), true)
+ifdef IOS_CC
+CFLAGS+=$(IOS_CFLAGS)
+else
 CFLAGS+=-O3 -fexpensive-optimizations
+endif
 endif
 endif
 
@@ -74,7 +86,9 @@ endif
 
 ifeq ($(PCSL_CPU), arm)
 CFLAGS   += -DARM
+ifndef IOS_CC
 LD_FLAGS += -Xlinker --no-warn-mismatch
+endif
 endif
 
 ifeq ($(PCSL_CPU), mips)
