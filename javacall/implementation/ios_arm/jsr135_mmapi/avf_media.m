@@ -20,7 +20,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "javacall_multimedia.h"
-#include "lcd_ios.h"
+#include "../midp/lcd_ios.h"
 
 extern void javacall_printf(const char* format, ...);
 
