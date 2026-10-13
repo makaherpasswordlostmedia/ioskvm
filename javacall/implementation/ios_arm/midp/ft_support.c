@@ -206,7 +206,7 @@ void init_from_config() {
 	_ftc_config_read = 1; }
 
 /** Face retrieval callback used by top level cache manager */
-FT_CALLBACK_DEF( FT_Error )  
+static FT_Error
 fts_face_requester(
 	FTC_FaceID  face_id,
 	FT_Library  lib,                     
@@ -217,7 +217,7 @@ fts_face_requester(
 	return FT_New_Face(lib, (const char*)face_id, 0, aface); }
 
 // Utility inline to set an FTC_ScalerRec structure consistently.  
-inline void set_scaler_rec(FTC_ScalerRec* r,
+static inline void set_scaler_rec(FTC_ScalerRec* r,
                      javacall_font_face face, 
                      javacall_font_style style, 
                      javacall_font_size size) {
@@ -230,7 +230,7 @@ inline void set_scaler_rec(FTC_ScalerRec* r,
 
 // Utility inline to set an FTC_ScalerRec structure consistently
 // from the 'last resort' fallback  
-inline void set_fallback_scaler_rec(FTC_ScalerRec* r,
+static inline void set_fallback_scaler_rec(FTC_ScalerRec* r,
                      javacall_font_face face, 
                      javacall_font_size size) {
 	r->face_id = (FTC_FaceID)_fallback_fn;
