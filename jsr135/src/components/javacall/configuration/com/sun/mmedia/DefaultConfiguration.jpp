@@ -74,17 +74,14 @@ public class DefaultConfiguration extends Configuration {
 
         {MIME_AUDIO_MP3, "com.sun.mmedia.DirectPlayer"},
         {MIME_AUDIO_MP3_2, "com.sun.mmedia.DirectPlayer"},
-/*
         {MIME_AUDIO_MP4, "com.sun.mmedia.DirectPlayer"},
         {MIME_AUDIO_MP4_2, "com.sun.mmedia.DirectPlayer"},
         {MIME_AUDIO_AAC, "com.sun.mmedia.DirectPlayer"},
-        {MIME_AUDIO_QCELP, "com.sun.mmedia.DirectPlayer"},
-        {MIME_AUDIO_QCELP_2, "com.sun.mmedia.DirectPlayer"},
+        /* iOS: video is rendered natively by AVFoundation (ios_arm/jsr135_mmapi) */
         {MIME_VIDEO_3GPP, "com.sun.mmedia.DirectVideo"},
         {MIME_VIDEO_3GPP_2, "com.sun.mmedia.DirectVideo"},
         {MIME_VIDEO_MPEG, "com.sun.mmedia.DirectVideo"},
         {MIME_VIDEO_MPEG4, "com.sun.mmedia.DirectVideo"},
-*/
 // #ifdef ENABLE_INDIRECT_VIDEO [        
         {MIME_IMAGE_GIF, "com.sun.mmedia.GIFPlayer"},
 // #endif ]        
@@ -186,7 +183,14 @@ public class DefaultConfiguration extends Configuration {
 						MIME_AUDIO_WAV_2,
 						MIME_IMAGE_GIF,
 						MIME_AUDIO_MP3,
-						MIME_AUDIO_MP3_2
+						MIME_AUDIO_MP3_2,
+						MIME_AUDIO_MP4,
+						MIME_AUDIO_MP4_2,
+						MIME_AUDIO_AAC,
+						MIME_VIDEO_3GPP,
+						MIME_VIDEO_3GPP_2,
+						MIME_VIDEO_MPEG,
+						MIME_VIDEO_MPEG4
 					};
 				}
 				else
@@ -200,7 +204,14 @@ public class DefaultConfiguration extends Configuration {
 						MIME_AUDIO_WAV_2,
 						MIME_IMAGE_GIF,
 						MIME_AUDIO_MP3,
-						MIME_AUDIO_MP3_2
+						MIME_AUDIO_MP3_2,
+						MIME_AUDIO_MP4,
+						MIME_AUDIO_MP4_2,
+						MIME_AUDIO_AAC,
+						MIME_VIDEO_3GPP,
+						MIME_VIDEO_3GPP_2,
+						MIME_VIDEO_MPEG,
+						MIME_VIDEO_MPEG4
 					};
 				}
 			}
@@ -217,7 +228,14 @@ public class DefaultConfiguration extends Configuration {
 						MIME_AUDIO_WAV_2,
 						MIME_IMAGE_GIF,
 						MIME_AUDIO_MP3,
-						MIME_AUDIO_MP3_2
+						MIME_AUDIO_MP3_2,
+						MIME_AUDIO_MP4,
+						MIME_AUDIO_MP4_2,
+						MIME_AUDIO_AAC,
+						MIME_VIDEO_3GPP,
+						MIME_VIDEO_3GPP_2,
+						MIME_VIDEO_MPEG,
+						MIME_VIDEO_MPEG4
 						};
 				}
 				else
@@ -230,7 +248,14 @@ public class DefaultConfiguration extends Configuration {
 						MIME_AUDIO_WAV_2,
 						MIME_IMAGE_GIF,
 						MIME_AUDIO_MP3,
-						MIME_AUDIO_MP3_2
+						MIME_AUDIO_MP3_2,
+						MIME_AUDIO_MP4,
+						MIME_AUDIO_MP4_2,
+						MIME_AUDIO_AAC,
+						MIME_VIDEO_3GPP,
+						MIME_VIDEO_3GPP_2,
+						MIME_VIDEO_MPEG,
+						MIME_VIDEO_MPEG4
 						};
 				}
 			}
@@ -266,7 +291,14 @@ public class DefaultConfiguration extends Configuration {
 					MIME_AUDIO_WAV_2,
 					MIME_IMAGE_GIF,
 					MIME_AUDIO_MP3,
-					MIME_AUDIO_MP3_2
+					MIME_AUDIO_MP3_2,
+						MIME_AUDIO_MP4,
+						MIME_AUDIO_MP4_2,
+						MIME_AUDIO_AAC,
+						MIME_VIDEO_3GPP,
+						MIME_VIDEO_3GPP_2,
+						MIME_VIDEO_MPEG,
+						MIME_VIDEO_MPEG4
 					};
 			}
 			else
@@ -279,7 +311,14 @@ public class DefaultConfiguration extends Configuration {
 					MIME_AUDIO_WAV_2,
 					MIME_IMAGE_GIF,
 					MIME_AUDIO_MP3,
-					MIME_AUDIO_MP3_2
+					MIME_AUDIO_MP3_2,
+						MIME_AUDIO_MP4,
+						MIME_AUDIO_MP4_2,
+						MIME_AUDIO_AAC,
+						MIME_VIDEO_3GPP,
+						MIME_VIDEO_3GPP_2,
+						MIME_VIDEO_MPEG,
+						MIME_VIDEO_MPEG4
 					};
 			}
         }
@@ -299,7 +338,14 @@ public class DefaultConfiguration extends Configuration {
 					MIME_AUDIO_WAV_2,
 					MIME_IMAGE_GIF,
 					MIME_AUDIO_MP3,
-					MIME_AUDIO_MP3_2
+					MIME_AUDIO_MP3_2,
+						MIME_AUDIO_MP4,
+						MIME_AUDIO_MP4_2,
+						MIME_AUDIO_AAC,
+						MIME_VIDEO_3GPP,
+						MIME_VIDEO_3GPP_2,
+						MIME_VIDEO_MPEG,
+						MIME_VIDEO_MPEG4
 					};
 			}
 			else
@@ -312,7 +358,14 @@ public class DefaultConfiguration extends Configuration {
 					MIME_AUDIO_WAV_2,
 					MIME_IMAGE_GIF,
 					MIME_AUDIO_MP3,
-					MIME_AUDIO_MP3_2
+					MIME_AUDIO_MP3_2,
+						MIME_AUDIO_MP4,
+						MIME_AUDIO_MP4_2,
+						MIME_AUDIO_AAC,
+						MIME_VIDEO_3GPP,
+						MIME_VIDEO_3GPP_2,
+						MIME_VIDEO_MPEG,
+						MIME_VIDEO_MPEG4
 					};
 			}
         }
