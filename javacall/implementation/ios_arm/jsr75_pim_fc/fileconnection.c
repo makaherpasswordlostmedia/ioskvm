@@ -160,7 +160,7 @@ javacall_result javacall_fileconnection_init(void) {
     return JAVACALL_OK;
 }
 
-inline static ensureInitialized() {
+static inline void ensureInitialized(void) {
     if (!_fc_not_initialized) {
         javacall_fileconnection_init();
     }
@@ -455,7 +455,7 @@ javacall_result javacall_fileconnection_create_dir(const javacall_utf16* dirName
         return JAVACALL_FAIL;
     }
 
-    if(0 != mk_dir(szOsFilename, 0777)) {
+    if(0 != mkdir(szOsFilename, 0777)) {
         javacall_print("Error: javacall_fileconnection_create_dir(), cannot create directory\n");
         return JAVACALL_FAIL;
     }
@@ -480,7 +480,7 @@ javacall_result javacall_fileconnection_delete_dir(const javacall_utf16* dirName
         return JAVACALL_FAIL;
     }
 
-    if(0 != rm_dir(szOsFilename)) {
+    if(0 != rmdir(szOsFilename)) {
         javacall_print("Error: javacall_fileconnection_delete_dir(), cannot delete directory\n");
         return JAVACALL_FAIL;
     }
