@@ -1,0 +1,388 @@
+name: PSPKVM iOS armv7 (J2ME emulator, iOS 7.0+)
+
+# Pipeline adapted from caprice32ios/ios-build.yml: same Theos + L1ghtmann vanilla-clang toolchain,
+# libc++ __config_site fix, iPhoneOS 9.3 SDK + module.map fix, freetype from source.
+# Extra here: 32-bit host tools (gcc -m32) and JDK 8 for the phoneME/CLDC class + ROM generation.
+
+on:
+  push:
+    paths: ["ios/**", "javacall/**", "cldc/**", "midp/**", "pcsl/**", "jsr135/**", "ext/**", "build-ios-cldc.sh", ".github/workflows/ios.yml"]
+  workflow_dispatch: {}
+
+env:
+  IOS_SDK_VERSION: "9.3"
+  IOS_DEPLOY_TARGET: "7.0"
+
+jobs:
+  build-ios-armv7:
+    name: Build (Theos / iOS 7.0+ / armv7)
+    runs-on: ubuntu-24.04      # the L1ghtmann toolchain needs glibc >= 2.38 (as in your WL4 workflow)
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check runner glibc (toolchain needs >= 2.38)
+        run: |
+          V=$(ldd --version | head -1 | grep -oE '[0-9]+\.[0-9]+$')
+          echo "glibc $V"
+          python3 -c "import sys; v=tuple(map(int,'$V'.split('.'))); sys.exit(0 if v>=(2,38) else 1)" || { echo "::error::glibc $V too old"; exit 1; }
+
+      - name: Identify commit
+        id: commit-info
+        run: echo "hash=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
+      - name: Install host build tools (incl. 32-bit for romgen/loopgen)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y wget gnupg lsb-release software-properties-common \
+                                  build-essential gcc-multilib g++-multilib perl curl ca-certificates \
+                                  zip unzip xz-utils bzip2 git fakeroot make python3 \
+                                  autoconf automake libtool pkg-config
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "8"
+
+      - name: Install Theos + iOS cross toolchain
+        env:
+          THEOS: ${{ github.workspace }}/theos
+        run: |
+          git clone --recursive https://github.com/theos/theos.git "$THEOS"
+          # Theos expects the iOS cross compiler at
+          # $THEOS/toolchain/linux/iphone/bin/clang. Grab the Linux->iOS
+          # toolchain release (bundles clang, ld64, cctools, libtapi,
+          # ldid, etc.) which supports the legacy 32-bit ARM ABI.
+          mkdir -p "$THEOS/toolchain/linux/iphone"
+          curl -fsSL \
+            "https://github.com/L1ghtmann/llvm-project/releases/download/main-update_3-eabca92/iOSToolchain-x86_64.tar.xz" \
+            -o /tmp/ios-toolchain.tar.xz
+          tar -xf /tmp/ios-toolchain.tar.xz -C "$THEOS/toolchain"
+          ls "$THEOS/toolchain/linux/iphone/bin" | head -20
+          echo "THEOS=$THEOS" >> $GITHUB_ENV
+
+      - name: Fix missing libc++ __config_site
+        env:
+          THEOS: ${{ github.workspace }}/theos
+          LLVM_COMMIT: "eabca92"
+        run: |
+          # This toolchain release (main-update_3-eabca92, built from
+          # commit eabca92 in L1ghtmann/llvm-project) ships libc++'s
+          # headers but not the generated __config_site that CMake
+          # normally produces when libc++ itself is built. Without it,
+          # <__config> (pulled in transitively by nearly every libc++
+          # header) fails immediately with "'__config_site' file not
+          # found". Fetch the real __config_site.in template from that
+          # exact commit and fill it in the way this toolchain's build
+          # actually would: pthreads as the thread API (Darwin/iOS),
+          # Itanium ABI version 1, no feature sets disabled (this
+          # libc++ ships full filesystem/locale/wide-char support).
+          CONFIG_DIRS="$(grep -rl '__config_site' \
+            "$THEOS/toolchain/linux/iphone/include" 2>/dev/null \
+            | xargs -n1 dirname | sort -u)"
+          echo "Dirs needing __config_site:"
+          echo "$CONFIG_DIRS"
+          if [ -z "$CONFIG_DIRS" ]; then
+            echo "::error::No __config referencing __config_site found - toolchain layout differs from expected."
+            exit 1
+          fi
+
+          curl -fsSL \
+            "https://raw.githubusercontent.com/L1ghtmann/llvm-project/${LLVM_COMMIT}/libcxx/include/__config_site.in" \
+            -o /tmp/__config_site.in
+          echo "----- Template (__config_site.in) -----"
+          cat /tmp/__config_site.in
+          echo "-----------------------------------------"
+
+          # Sanity check: the __config_site we're about to generate must
+          # match the ABI namespace actually baked into this toolchain's
+          # prebuilt static libc++.a, not just upstream's CMake defaults.
+          # If they disagree, every std:: symbol mismatches at link time
+          # (exactly the "Undefined symbols ... _LIBCPP_ABI_NAMESPACE ..."
+          # wall this step exists to prevent).
+          LIBCXX_A="$(find "$THEOS/toolchain/linux/iphone" -name 'libc++.a' | head -1)"
+          if [ -z "$LIBCXX_A" ]; then
+            echo "::error::Could not find libc++.a in toolchain to verify ABI namespace."
+            exit 1
+          fi
+          # Look for a mangled symbol containing an explicit ABI namespace
+          # tag (e.g. 5__1 or similar numbered identifier) vs plain "St".
+          if nm "$LIBCXX_A" 2>/dev/null | grep -q '_ZNSt3__1'; then
+            DETECTED_NAMESPACE="__1"
+          elif nm "$LIBCXX_A" 2>/dev/null | grep -qE '_ZNSt[0-9]+[A-Za-z_]+[0-9]'; then
+            DETECTED_NAMESPACE="$(nm "$LIBCXX_A" | grep -oE '_ZNSt[0-9]+[A-Za-z_]+' | head -1 | sed -E 's/_ZNSt[0-9]+//')"
+          else
+            DETECTED_NAMESPACE=""
+          fi
+          echo "Detected ABI namespace in prebuilt libc++.a: '${DETECTED_NAMESPACE:-<none/plain std>}'"
+
+          # Turn #cmakedefine / #cmakedefine01 lines into real #define
+          # (or commented-out #undef) lines, AND resolve the bare
+          # @VAR@-style substitutions this template also contains
+          # (those aren't #cmakedefine lines at all, so a rule that
+          # only handles #cmakedefine leaves literal "@_FOO@" text in
+          # the output - which clang then chokes on as raw
+          # non-preprocessor tokens, "expected unqualified-id").
+          #
+          # Explicit choices made here, matching a standard release
+          # build of libc++ for a Darwin/iOS target:
+          #   _LIBCPP_ABI_VERSION            -> 1        (current ABI)
+          #   _LIBCPP_HAS_THREAD_API_PTHREAD -> defined  (Darwin/iOS use pthreads)
+          #   _LIBCPP_HARDENING_MODE_DEFAULT -> _LIBCPP_HARDENING_MODE_NONE
+          #       (matches upstream's own default for a non-hardened,
+          #       non-debug release build; this __config lists NONE
+          #       first among the four valid values and every other
+          #       Apple-target libc++ ships with this default absent
+          #       an explicit opt-in to hardening)
+          #   Exactly one _LIBCPP_PSTL_CPU_BACKEND_* -> SERIAL
+          #       (the no-extra-dependency default backend; THREAD
+          #       needs libc++'s own thread pool wiring and
+          #       LIBDISPATCH needs Apple's libdispatch, neither of
+          #       which this bare cross-toolchain build sets up)
+          #   @_LIBCPP_ABI_DEFINES@, @_LIBCPP_EXTRA_SITE_DEFINES@ -> blank
+          #       (these are lists of extra #define lines that CMake
+          #       splices in from its own ABI-breaking-change config;
+          #       empty is the correct value for a build enabling no
+          #       non-default ABI flags, which matches everything else
+          #       chosen above)
+          awk -v ns="$DETECTED_NAMESPACE" '
+            /^#cmakedefine01[ \t]+_LIBCPP_HAS_THREAD_API_PTHREAD/ {
+              print "#define _LIBCPP_HAS_THREAD_API_PTHREAD 1"; next
+            }
+            /^#cmakedefine01[ \t]+/ {
+              name=$2; print "#define " name " 0"; next
+            }
+            /^#cmakedefine[ \t]+_LIBCPP_ABI_VERSION/ {
+              print "#define _LIBCPP_ABI_VERSION 1"; next
+            }
+            /^#cmakedefine[ \t]+_LIBCPP_ABI_NAMESPACE/ {
+              if (ns != "") { print "#define _LIBCPP_ABI_NAMESPACE " ns } else { print "/* #undef _LIBCPP_ABI_NAMESPACE */" }
+              next
+            }
+            /^#cmakedefine[ \t]+_LIBCPP_HAS_THREAD_API_PTHREAD/ {
+              print "#define _LIBCPP_HAS_THREAD_API_PTHREAD"; next
+            }
+            /^#cmakedefine[ \t]+_LIBCPP_HARDENING_MODE_DEFAULT/ {
+              print "#define _LIBCPP_HARDENING_MODE_DEFAULT _LIBCPP_HARDENING_MODE_NONE"; next
+            }
+            /^#cmakedefine[ \t]+_LIBCPP_PSTL_CPU_BACKEND_SERIAL/ {
+              print "#define _LIBCPP_PSTL_CPU_BACKEND_SERIAL"; next
+            }
+            /^#cmakedefine[ \t]+_LIBCPP_PSTL_CPU_BACKEND_(THREAD|LIBDISPATCH)/ {
+              name=$2; print "/* #undef " name " */"; next
+            }
+            /^#cmakedefine[ \t]+/ {
+              name=$2; print "/* #undef " name " */"; next
+            }
+            /^@_LIBCPP_ABI_DEFINES@$/      { next }
+            /^@_LIBCPP_EXTRA_SITE_DEFINES@$/ { next }
+            { print }
+          ' /tmp/__config_site.in > /tmp/__config_site
+
+          echo "----- Generated __config_site -----"
+          cat /tmp/__config_site
+          echo "------------------------------------"
+
+          for d in $CONFIG_DIRS; do
+            cp /tmp/__config_site "$d/__config_site"
+          done
+          find "$THEOS/toolchain/linux/iphone" -name '__config_site'
+
+      - name: Install iPhoneOS 9.3 SDK
+        env:
+          THEOS: ${{ github.workspace }}/theos
+        run: |
+          mkdir -p "$THEOS/sdks"
+          # Community mirror that keeps legacy SDKs with armv7 slices alive.
+          curl -fsSL -o /tmp/iphoneos9.3.sdk.tbz2 \
+            "https://raw.githubusercontent.com/Sn0wCooder/theos-sdks/master/iPhoneOS9.3.sdk.tbz2"
+          tar -xjf /tmp/iphoneos9.3.sdk.tbz2 -C "$THEOS/sdks"
+          ls "$THEOS/sdks"
+
+      - name: Fix legacy module maps in SDK (clang 19)
+        env:
+          THEOS: ${{ github.workspace }}/theos
+        run: |
+          # clang 19 rejects the old 'module.map' name
+          # (-Wdeprecated-module-dot-map) and refuses to build the
+          # Foundation/UIKit modules. Rename to the modern name, as the
+          # compiler itself suggests.
+          SDK="$THEOS/sdks/iPhoneOS9.3.sdk"
+          for fw in "$SDK"/System/Library/Frameworks/*.framework; do
+            if [ -f "$fw/module.map" ]; then
+              mkdir -p "$fw/Modules"
+              mv "$fw/module.map" "$fw/Modules/module.modulemap"
+            fi
+          done
+          find "$SDK/usr/include" -name module.map | while read -r m; do
+            mv "$m" "$(dirname "$m")/module.modulemap"
+          done
+          echo "remaining module.map files:"
+          find "$SDK" -name module.map | wc -l
+
+      - name: Set up cross-compile environment vars
+        env:
+          THEOS: ${{ github.workspace }}/theos
+        run: |
+          echo "IOS_CC=$THEOS/toolchain/linux/iphone/bin/clang" >> $GITHUB_ENV
+          echo "IOS_SYSROOT=$THEOS/sdks/iPhoneOS9.3.sdk" >> $GITHUB_ENV
+          echo "IOS_STAGE=${{ github.workspace }}/theos/vendor" >> $GITHUB_ENV
+
+          # This clang binary is a vanilla/LLVM.org-style clang (not
+          # Apple's clang), which does NOT understand Apple driver
+          # flags like -arch or -miphoneos-version-min - those only
+          # exist in Apple's own clang fork. A vanilla clang is a
+          # genuine cross-compiler instead: you select the target via
+          # --target=<arch>-apple-ios<version>, which sets the
+          # architecture AND OS/deployment version in one flag, and
+          # -isysroot still works the same way to point at the SDK.
+          # (This is what caused "unsupported option '-arch' for
+          # target 'x86_64-unknown-linux-gnu'" - the compiler was
+          # silently defaulting to a host build because none of our
+          # flags actually selected an iOS target.)
+          echo "IOS_TARGET_FLAGS=--target=armv7-apple-ios${IOS_DEPLOY_TARGET} -isysroot $THEOS/sdks/iPhoneOS9.3.sdk" >> $GITHUB_ENV
+
+          # Archiver: prefer llvm-ar bundled next to clang in this
+          # toolchain release (standard for L1ghtmann/sbingner-style
+          # iOS cross toolchains, which usually ship llvm-ar/llvm-ranlib
+          # rather than plain ar/ranlib). Fall back to the host's ar,
+          # which is fine here - we're only archiving already-compiled
+          # armv7 Mach-O objects into a plain .a, a format-level
+          # operation that doesn't require a target-aware archiver.
+          TOOLBIN="$THEOS/toolchain/linux/iphone/bin"
+          if [ -x "$TOOLBIN/llvm-ar" ]; then
+            echo "IOS_AR=$TOOLBIN/llvm-ar" >> $GITHUB_ENV
+          else
+            echo "IOS_AR=$(command -v ar)" >> $GITHUB_ENV
+          fi
+          ls "$TOOLBIN"
+
+          # Sanity check right here, in this step, so a broken target
+          # selection fails fast with a clear message instead of 45
+          # minutes into the workflow inside a library build.
+          echo 'int main(void){return 0;}' > /tmp/target_check.c
+          "$THEOS/toolchain/linux/iphone/bin/clang" \
+            --target=armv7-apple-ios${IOS_DEPLOY_TARGET} \
+            -isysroot "$THEOS/sdks/iPhoneOS9.3.sdk" \
+            -c /tmp/target_check.c -o /tmp/target_check.o
+          file /tmp/target_check.o || true
+          # Fail fast if the object doesn't carry the 7.0 deployment target.
+          if command -v otool >/dev/null 2>&1; then
+            otool -l /tmp/target_check.o | grep -A3 -E 'LC_VERSION_MIN|LC_BUILD_VERSION' || true
+          fi
+
+
+      - name: Prepare staging dirs
+        run: mkdir -p "$IOS_STAGE"/{lib,include}
+
+      - name: Cross-compile freetype2 for armv7/iOS
+        run: |
+          # savannah.gnu.org occasionally 500s (seen in CI: "curl: (22)
+          # The requested URL returned error: 500") - it's a general
+          # mirror-network flakiness issue, not something wrong with our
+          # request. Retry a few times, and fall back to SourceForge,
+          # which hosts the identical release tarball (it's listed as
+          # freetype's own upstream mirror, e.g. in Homebrew's formula).
+          fetch_freetype() {
+            local url="$1"
+            for attempt in 1 2 3; do
+              curl -fsSL --retry 2 --retry-delay 2 -o /tmp/freetype.tar.gz "$url" && \
+              [ "$(head -c2 /tmp/freetype.tar.gz | xxd -p)" = "1f8b" ] && return 0
+              echo "Attempt $attempt from $url did not yield a valid gzip file, retrying..."
+              sleep 3
+            done
+            return 1
+          }
+
+          fetch_freetype "https://download.savannah.gnu.org/releases/freetype/freetype-2.13.2.tar.gz" \
+            || fetch_freetype "https://downloads.sourceforge.net/project/freetype/freetype2/2.13.2/freetype-2.13.2.tar.gz" \
+            || { echo "::error::Could not download a valid freetype-2.13.2.tar.gz from any source"; exit 1; }
+
+          mkdir -p /tmp/freetypesrc && tar -xzf /tmp/freetype.tar.gz -C /tmp/freetypesrc --strip-components=1
+          cd /tmp/freetypesrc
+          CC="$IOS_CC" \
+          AR="$IOS_AR" \
+          RANLIB=: \
+          CFLAGS="$IOS_TARGET_FLAGS" \
+          LDFLAGS="$IOS_TARGET_FLAGS" \
+          ./configure --host=arm-apple-darwin --disable-shared --enable-static \
+                      --without-harfbuzz --without-bzip2 --without-brotli \
+                      --with-zlib=no --with-png=no \
+                      --prefix=/tmp/freetype-out
+          make -j"$(nproc)"
+          make install
+          cp /tmp/freetype-out/lib/libfreetype.a "$IOS_STAGE/lib/"
+          mkdir -p "$IOS_STAGE/include/freetype2"
+          cp -r /tmp/freetype-out/include/freetype2/* "$IOS_STAGE/include/freetype2/"
+          echo "libfreetype.a built: $(du -h "$IOS_STAGE/lib/libfreetype.a")"
+
+      - name: Stage libs into Theos SDK lib dir
+        run: |
+          # NOTE: THEOS_STAGING_DIR is a Theos *system* variable (staged
+          # package/product output dir - see theos.dev/docs/variables),
+          # NOT a place to point at the SDK. Overwriting it here was
+          # clobbering Theos's own internal staging path, which broke
+          # its SDK auto-detection in before-all ("You do not have any
+          # SDKs in .../theos/sdks", even though the SDK was right
+          # there). Use a distinct name and consume it as SDK_ROOT in
+          # the app Makefile instead.
+          SDK_ROOT="$THEOS/sdks/iPhoneOS9.3.sdk"
+          mkdir -p "$SDK_ROOT/usr/lib" "$SDK_ROOT/usr/include"
+          cp "$IOS_STAGE"/lib/*.a "$SDK_ROOT/usr/lib/"
+          cp -r "$IOS_STAGE"/include/* "$SDK_ROOT/usr/include/"
+          echo "SDK_ROOT=$SDK_ROOT" >> $GITHUB_ENV
+
+
+      - name: Export tool paths for the phoneME build
+        run: |
+          echo "JDK_DIR=$JAVA_HOME" >> $GITHUB_ENV
+          echo "IOS_CXX=$(dirname "$IOS_CC")/clang++" >> $GITHUB_ENV
+          echo "IOS_FREETYPE_INC=$SDK_ROOT/usr/include/freetype2" >> $GITHUB_ENV
+
+      - name: Build VM libs (cldc / pcsl / javacall / midp)
+        env:
+          THEOS: ${{ github.workspace }}/theos
+        run: ./build-ios-cldc.sh 2>&1 | tee build-vm.log
+
+      - name: Build .deb + .app via Theos
+        env:
+          THEOS: ${{ github.workspace }}/theos
+          FINALPACKAGE: "1"
+        run: |
+          cd ios
+          make -f Makefile clean
+          make -f Makefile package FINALPACKAGE=1 SDK_ROOT="$SDK_ROOT" V=1
+          ls -la packages
+
+      - name: Check binary for symbols missing on iOS 7
+        run: |
+          BIN="$(find ios/.theos -type f -name pspkvm | head -n1)"
+          TOOLBIN="$THEOS/toolchain/linux/iphone/bin"
+          NM="$(ls "$TOOLBIN"/llvm-nm "$TOOLBIN"/*-nm 2>/dev/null | head -n1)"
+          [ -z "$NM" ] && NM="$(command -v llvm-nm || command -v nm)"
+          "$NM" -u "$BIN" > /tmp/undef.txt 2>/dev/null || true
+          echo "undefined symbols: $(wc -l < /tmp/undef.txt)"
+          grep -E "AVAudioSession|AVPlayerItemVideoOutput|UIAlertController|__isPlatformVersionAtLeast|nativeScale" /tmp/undef.txt || echo "(none suspicious)"
+          echo "--- compiler-rt helpers imported (resolved from libSystem on iOS 7; WL4 needed a shim only for iOS 5):"
+          grep -E "^___(u?div|u?mod|float|fix)" /tmp/undef.txt || echo "none"
+          if grep -E "_OBJC_CLASS_\$_(UIAlertController|CAMetalLayer|UIStackView|UIVisualEffectView)" /tmp/undef.txt; then
+            echo "::error::Binary strongly imports a class absent on iOS 7"; exit 1
+          fi
+
+      - name: Pack .ipa
+        run: |
+          rm -rf ipa_build; mkdir -p ipa_build/Payload
+          APP_DIR="$(find ios/.theos -type d -name 'pspkvm.app' | head -n1)"
+          cp -a "$APP_DIR" ipa_build/Payload/
+          (cd ipa_build && zip -rq ../ios/packages/PSPKVM-${{ steps.commit-info.outputs.hash }}-armv7-iOS7.ipa Payload)
+
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: PSPKVM-armv7-iOS7-${{ steps.commit-info.outputs.hash }}
+          path: |
+            ios/packages/*.ipa
+            ios/packages/*.deb
+            build-vm.log
+          if-no-files-found: error
+          retention-days: 30
