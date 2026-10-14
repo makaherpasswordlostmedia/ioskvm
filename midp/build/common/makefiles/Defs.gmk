@@ -472,6 +472,7 @@ define compilefiles
 			f2= ; \
 		fi ; \
 		$(JAVAC_CMD) -g$(JAVAC_DEBUG) -d $(JAVAC_OUT_DIR) \
+			-source 1.4 -target 1.4 -encoding ISO-8859-1 \
 			-bootclasspath "$(BOOTCLASSPATH)" \
 			-classpath $(CLASSBINDIR) $$f1 $$f2 || exit 1; \
 		if test "$(TARGET_VM)" = "cldc_vm"; then \
