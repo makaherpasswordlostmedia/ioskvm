@@ -66,3 +66,9 @@ extern "C" int JVM_Start2(const JvmPathChar *classpath,
   }
   return result;
 }
+
+// Host (romgen) build for the iOS port uses os_family=linux; the log channel is only meaningful
+// with javacall, so it is a no-op here.
+extern "C" void JVM_SetLogChannel(int channel) {
+  (void)channel;
+}
