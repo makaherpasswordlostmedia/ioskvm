@@ -1508,6 +1508,7 @@ ifneq ($(IsTarget),true)
  LINK_gcc          = g++ -m32
  ASM_gcc           = as --32
  IOS_HOST_LIBS     = -lm
+ LINK_FLAGS        += -lm
 endif
 endif
 
