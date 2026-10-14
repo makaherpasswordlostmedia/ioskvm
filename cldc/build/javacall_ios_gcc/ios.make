@@ -6,5 +6,5 @@ IOS_CC     ?= $(THEOS)/toolchain/linux/iphone/bin/clang
 IOS_CXX    ?= $(THEOS)/toolchain/linux/iphone/bin/clang++
 IOS_AR     ?= $(THEOS)/toolchain/linux/iphone/bin/llvm-ar
 IOS_TARGET_FLAGS ?= --target=armv7-apple-ios$(IOS_MIN) -isysroot $(IOS_SDK)
-IOS_CFLAGS ?= $(IOS_TARGET_FLAGS) -O2 -fno-strict-aliasing -fno-stack-protector -fno-modules -fno-implicit-modules -fno-implicit-module-maps -Wno-error -Wno-register -Wno-reserved-user-defined-literal -Wno-implicit-function-declaration -Wno-int-conversion -Wno-incompatible-function-pointer-types
+IOS_CFLAGS ?= $(IOS_TARGET_FLAGS) -O2 -fno-strict-aliasing -fno-stack-protector -fno-modules -fno-implicit-modules -fno-implicit-module-maps -Wno-error -Wno-register -Wno-reserved-user-defined-literal -Wno-implicit-function-declaration -Wno-int-conversion -Wno-incompatible-function-pointer-types -Wno-c++11-narrowing
 export IOS_CC IOS_CXX IOS_AR IOS_CFLAGS
