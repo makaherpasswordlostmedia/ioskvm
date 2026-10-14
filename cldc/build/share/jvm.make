@@ -136,6 +136,11 @@ endif
 MakeDepsMain_win32    = WinGammaPlatform
 MakeDepsMain_wince    = WinCEGammaPlatform
 MakeDepsMain_linux    = UnixPlatform
+# iOS build runs on a Linux host with os_family=javacall for the target; without this MakeDeps
+# falls back to the Windows platform (.obj object names) the PSP/cygwin flow used.
+ifeq ($(IOS_TARGET),true)
+MakeDepsMain_javacall = UnixPlatform
+endif
 ifneq ($(MakeDepsMain_$(os_family)_$(compiler)),)
 MakeDepsMain          = $(MakeDepsMain_$(os_family)_$(compiler))
 else
@@ -2484,3 +2489,11 @@ clean:
 %:: RCS/%
 
 FORCE:
+
+# --- temporary iOS port diagnostics (remove once the library rule works) ---
+ifeq ($(IOS_TARGET),true)
+$(info IOSDBG os_family=[$(os_family)] OBJ_SUFFIX=[$(OBJ_SUFFIX)] MakeDepsMain=[$(MakeDepsMain)])
+$(info IOSDBG LIB_OBJS=[$(LIB_OBJS)])
+$(info IOSDBG Obj_Files=[$(Obj_Files)])
+$(info IOSDBG EXE_OBJS=[$(EXE_OBJS)] LIBX_OBJS=[$(LIBX_OBJS)] LIBTEST_OBJS=[$(LIBTEST_OBJS)])
+endif
