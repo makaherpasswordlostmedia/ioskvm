@@ -1588,7 +1588,10 @@ CPP_DEF_FLAGS           += -fno-strict-aliasing
 CPLUSPLUS_FLAGS         += -fno-gnu-keywords
 CPLUSPLUS_FLAGS         += -fno-operator-names
 CPLUSPLUS_FLAGS         += -fno-exceptions
+ifneq ($(IOS_TARGET)$(IsTarget),truetrue)
+# gcc-only flag; clang (iOS target) rejects it as an unknown argument
 CPLUSPLUS_FLAGS         += -fno-optional-diags
+endif
 CPLUSPLUS_FLAGS         += -fno-rtti
 
 CPP_DEF_FLAGS_i386       = -Di386
