@@ -50,7 +50,7 @@ static javacall_result midpHandleSetVmArgs(int argc, char* argv);
 static javacall_result midpHandleSetHeapSize(midp_event_heap_size heap_size);
 static javacall_result midpHandleListMIDlets(void);
 static javacall_result midpHandleListStorageNames(void);
-static javacall_result midpHandleRemoveMIDlet(midp_event_remove_midletremoveMidletEvent);
+static javacall_result midpHandleRemoveMIDlet(midp_event_remove_midlet removeMidletEvent);
 
 
 
