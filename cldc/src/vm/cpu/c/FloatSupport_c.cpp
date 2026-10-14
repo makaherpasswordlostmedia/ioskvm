@@ -27,6 +27,22 @@
 #include "incls/_precompiled.incl"
 #include "incls/_FloatSupport_c.cpp.incl"
 
+// iOS port: the 32-bit host romgen is linked without a usable libm in CI, so provide fmod/fmodf
+// ourselves (x87 FPREM = C fmod semantics). Host-only; the iOS target uses libSystem's versions.
+#if defined(__i386__) && defined(__linux__)
+extern "C" {
+double fmod(double a, double b) {
+  double r;
+  __asm__ volatile("1: fprem\n\tfnstsw %%ax\n\tsahf\n\tjp 1b\n\tfstp %%st(1)"
+                   : "=t"(r) : "0"(a), "u"(b) : "ax", "cc", "st(1)");
+  return r;
+}
+float fmodf(float a, float b) {
+  return (float)fmod((double)a, (double)b);
+}
+}
+#endif
+
 #if ENABLE_FLOAT
 
 #if defined(LINUX) && PROCESSOR_ARCHITECTURE_X86
