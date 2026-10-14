@@ -149,13 +149,16 @@
     <!-- name of the class to which this node maps to -->
     <xsl:variable name="className" select="concat(@Package,'.',@Name)"/>
     <!-- if we havent seen this class name yet -->
-    <xsl:if test="generate-id()=generate-id(key('classesNodes', $className)[1])">
+    <xsl:variable name="classNodes"
+        select="ancestor::configuration/constants/constant_class[concat(@Package,'.',@Name)=$className]
+              | ancestor::configuration/localized_strings[concat(@Package,'.',@Name)=$className]"/>
+    <xsl:if test="generate-id()=generate-id($classNodes[1])">
         <!-- output matched node -->
         <xsl:copy>
             <!-- output all matched node attributes -->
             <xsl:copy-of select="@*"/>
             <!-- for each child of nodes with same class name -->
-            <xsl:for-each select="key('classesNodes', $className)/child::*">
+            <xsl:for-each select="$classNodes/child::*">
                 <!-- output child node -->
                 <xsl:apply-templates select="." mode="joinClasses"/>
             </xsl:for-each>
@@ -242,7 +245,7 @@
     
     <!-- nodes providing keys values for this relationship -->
     <xsl:variable name="keysValuesNodes" 
-        select="/configuration/constants/constant_class[$keysClassName=concat(
+        select="ancestor::configuration/constants/constant_class[$keysClassName=concat(
         @Package,'.',@Name)]/constant"/>
 
     <!-- for each key -->
@@ -252,7 +255,10 @@
         
         <!-- nodes that use this key (refer to it) -->
         <xsl:variable name="keyUsersNodes" 
-        select="key('keysUsersNodes', concat($nodePackage,'.',$nodeClass,':',$keyName))"/>
+        select="(ancestor::configuration/localized_strings/child::* | 
+                 ancestor::configuration/skin/skin_properties/child::*)
+                [concat(../@Package,'.',../@Name,':',../@KeysClass,'.',@Key)
+                 = concat($nodePackage,'.',$nodeClass,':',$keyName)]"/>
     
         <!-- error: this key is not used -->
         <xsl:if test="count($keyUsersNodes)=0">
@@ -281,8 +287,9 @@ is used more than once in '<xsl:value-of select="$nodeName"/>'
                 select="concat($keysClassName,'.',@Key)"/>
         
             <!-- constant nodes providing value for this key -->
+            <xsl:variable name="curKey" select="@Key"/>
             <xsl:variable name="keyValueNodes" 
-                select="key('keysValuesNodes', $keyName)"/>
+                select="$keysValuesNodes[../@KeysValuesProvider='true'][@Name=$curKey]"/>
     
             <!-- error: there is no constant corresponding to this key -->
             <xsl:if test="count($keyValueNodes)=0">
