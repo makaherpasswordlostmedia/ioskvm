@@ -446,7 +446,9 @@ class CSourceWriter {
             public int compare(Object o1, Object o2) {
                 LocalizedString r1 = (LocalizedString)o1;
                 LocalizedString r2 = (LocalizedString)o2;
-                return (r1.string.length() < r2.string.length()) ? 1 : -1;
+                int l1 = r1.string.length();
+                int l2 = r2.string.length();
+                return (l1 < l2) ? 1 : ((l1 > l2) ? -1 : 0);
             }
         });
 
