@@ -998,6 +998,7 @@ endif
 
 $(ROM_GENERATOR): $(CLDC_ZIP) $(Obj_Files) OopMapsSkeleton.obj $(GP_TABLE_OBJ)
 	$(A)echo "linking ROM generator: $(ROM_GENERATOR)"
+	$(A)echo "ROMGEN LINK: $(LINK) $(LINK_FLAGS) $(IOS_HOST_LIBS)"
 	$(A)$(LINK) $(PCSL_LIBS) $(LINK_FLAGS) /out:$@ \
 		$(Obj_Files) OopMapsSkeleton.obj $(GP_TABLE_OBJ)
 	$(A)$(ROM_GENERATOR) +GenerateOopMaps
@@ -1769,6 +1770,7 @@ endif
 $(ROM_GENERATOR): $(CLDC_ZIP) $(Obj_Files) OopMapsSkeleton$(OBJ_SUFFIX) \
 	 	  $(GP_TABLE_OBJ)
 	$(A)echo "linking ROM generator: $(ROM_GENERATOR)"
+	$(A)echo "ROMGEN LINK: $(LINK) $(LINK_FLAGS) $(IOS_HOST_LIBS)"
 	$(A)$(LINK) -o $@ $(Obj_Files) OopMapsSkeleton$(OBJ_SUFFIX) \
 	          $(GP_TABLE_OBJ) $(PCSL_LIBS) $(LINK_FLAGS) $(IOS_HOST_LIBS)
 	$(A)$(ROM_GENERATOR) +GenerateOopMaps
@@ -1781,6 +1783,7 @@ else
 $(ROM_GENERATOR): $(CLDC_ZIP) $(Obj_Files) InterpreterSkeleton$(OBJ_SUFFIX) \
 					   OopMapsSkeleton$(OBJ_SUFFIX)
 	$(A)echo "linking ROM generator: $(ROM_GENERATOR)"
+	$(A)echo "ROMGEN LINK: $(LINK) $(LINK_FLAGS) $(IOS_HOST_LIBS)"
 	$(A)$(LINK) $(Obj_Files) InterpreterSkeleton$(OBJ_SUFFIX) \
 		OopMapsSkeleton$(OBJ_SUFFIX) \
 		-o $@ $(PCSL_LIBS) $(LINK_FLAGS)
