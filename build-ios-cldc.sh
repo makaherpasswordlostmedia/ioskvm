@@ -66,7 +66,7 @@ export IOS_AR="${IOS_AR:-$( [ -x "$TOOLBIN/llvm-ar" ] && echo "$TOOLBIN/llvm-ar"
 export IOS_FREETYPE_INC="${IOS_FREETYPE_INC:-$IOS_SDK/usr/include/freetype2}"
 # Vanilla (non-Apple) clang: no -arch / -miphoneos-version-min, select the target with --target
 export IOS_TARGET_FLAGS="${IOS_TARGET_FLAGS:---target=armv7-apple-ios$IOS_MIN -isysroot $IOS_SDK}"
-export IOS_CFLAGS="${IOS_CFLAGS:-$IOS_TARGET_FLAGS -O2 -fno-strict-aliasing -fno-stack-protector -fno-modules -fno-implicit-modules -fno-implicit-module-maps -Wno-error -Wno-register -Wno-reserved-user-defined-literal -I$IOS_FREETYPE_INC}"
+export IOS_CFLAGS="${IOS_CFLAGS:-$IOS_TARGET_FLAGS -O2 -fno-strict-aliasing -fno-stack-protector -fno-modules -fno-implicit-modules -fno-implicit-module-maps -Wno-error -Wno-register -Wno-reserved-user-defined-literal -Wno-implicit-function-declaration -Wno-int-conversion -Wno-incompatible-function-pointer-types -I$IOS_FREETYPE_INC}"
 # JDK_DIR: JDK able to emit 1.3-level class files for the CLDC preverifier (JDK 8 or older)
 : "${JDK_DIR:?set JDK_DIR}"
 export JDK_DIR
