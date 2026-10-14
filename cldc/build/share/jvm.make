@@ -1495,7 +1495,7 @@ ifeq ($(IOS_TARGET)$(IsTarget),truetrue)
  CPP_gcc           = $(IOS_CXX)
  CC_gcc            = $(IOS_CC)
  LINK_gcc          = $(IOS_CXX)
- ASM_gcc           = $(IOS_CC) -c
+ ASM_gcc           = $(IOS_CC) $(IOS_TARGET_FLAGS) -c
  LIBMGR_gcc        = $(IOS_AR)
 endif
 
