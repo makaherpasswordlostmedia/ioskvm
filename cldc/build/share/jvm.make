@@ -1507,6 +1507,7 @@ ifneq ($(IsTarget),true)
  CC_gcc            = gcc -m32
  LINK_gcc          = g++ -m32
  ASM_gcc           = as --32
+ IOS_HOST_LIBS     = -lm
 endif
 endif
 
@@ -1768,7 +1769,7 @@ $(ROM_GENERATOR): $(CLDC_ZIP) $(Obj_Files) OopMapsSkeleton$(OBJ_SUFFIX) \
 	 	  $(GP_TABLE_OBJ)
 	$(A)echo "linking ROM generator: $(ROM_GENERATOR)"
 	$(A)$(LINK) -o $@ $(Obj_Files) OopMapsSkeleton$(OBJ_SUFFIX) \
-	          $(GP_TABLE_OBJ) $(PCSL_LIBS) $(LINK_FLAGS)
+	          $(GP_TABLE_OBJ) $(PCSL_LIBS) $(LINK_FLAGS) $(IOS_HOST_LIBS)
 	$(A)$(ROM_GENERATOR) +GenerateOopMaps
 	$(A)$(MAKE) OopMaps$(OBJ_SUFFIX)
 	$(A)echo "re-linking ROM generator: $(ROM_GENERATOR)"
