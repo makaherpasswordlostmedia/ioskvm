@@ -11,9 +11,13 @@ SUBSYSTEMS += PSPKVM_EXT
 
 PSPKVM_EXT_CONFIG_DIR = $(PSPKVM_EXT_DIR)/src/config/$(TARGET_PLATFORM)
 
+ifeq ($(TARGET_DEVICE), psp)
 PSPDEV_GNU_TOOLS_DIR=`psp-config -P`
-
 EXTRA_CFLAGS  += -DENABLE_PSPKVM_EXT=1 -I$(PSPDEV_GNU_TOOLS_DIR)/sdk/include -I$(PSPDEV_GNU_TOOLS_DIR)/include -G0 -fno-strict-aliasing
+else
+# non-PSP targets (e.g. iOS): no PSP SDK, and -G0 is a MIPS-only flag
+EXTRA_CFLAGS  += -DENABLE_PSPKVM_EXT=1 -fno-strict-aliasing
+endif
 JPP_DEFS      += -DENABLE_PSPKVM_EXT
 
 SUBSYSTEM_PSPKVM_EXT_JAVA_FILES += \
