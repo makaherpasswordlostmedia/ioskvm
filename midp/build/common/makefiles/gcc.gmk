@@ -62,6 +62,10 @@
 # 
 #
 ######################################################################
+ifdef IOS_CC
+    # iOS cross build: clang from the Theos toolchain (see build-ios-cldc.sh)
+    GNU_TOOLS_BINDIR=
+else
 ifdef GNU_TOOLS_DIR
     GNU_TOOLS_BINDIR?=$(GNU_TOOLS_DIR)/../bin/psp-
 else
@@ -73,6 +77,7 @@ else
 	# Otherwise, use gcc command from path
 	GNU_TOOLS_BINDIR=
     endif
+endif
 endif
 
 # Suffix
@@ -88,11 +93,20 @@ ifndef GCC_VERSION
 GCC_VERSION	=
 endif
 
+ifdef IOS_CC
+CC		= $(IOS_CC)
+CPP		= $(IOS_CXX)
+else
 CC		= $(GNU_TOOLS_BINDIR)gcc$(GCC_VERSION)
 CPP		= $(GNU_TOOLS_BINDIR)g++$(GCC_VERSION)
+endif
 CC_OUTPUT	= -o
 
+ifdef IOS_CC
+LD		= $(IOS_CXX)
+else
 LD		= $(GNU_TOOLS_BINDIR)g++$(GCC_VERSION)
+endif
 LINKER_OUTPUT	= -o
 #LIBS		= -lpthread -lm -lnsl
 LIBS		= -lm
@@ -102,10 +116,15 @@ LIBS		= -lm
 LD_START_GROUP = -Xlinker --start-group
 LD_END_GROUP = --end-group
 
+ifdef IOS_CC
+AR		= $(IOS_AR)
+RANLIB		= true
+else
 AR		= $(GNU_TOOLS_BINDIR)ar
+RANLIB  = $(GNU_TOOLS_BINDIR)ranlib
+endif
 CREATE_LIB	= $(AR) -rcs
 LIB_OUTPUT      =
-RANLIB  = $(GNU_TOOLS_BINDIR)ranlib
 
 # commands for AR mri script
 MRI_ADD = 'ADDMOD '
@@ -113,7 +132,11 @@ MRI_CREATE = 'CREATE '
 MRI_SAVE = 'SAVE'
 MRI_OPT = -M <
 
+ifdef IOS_CC
+ASM		= $(IOS_CC) $(IOS_TARGET_FLAGS) -c
+else
 ASM		= $(GNU_TOOLS_BINDIR)as
+endif
 ASM_FLAGS	= -W
 ASM_OUTPUT	= -o
 ASMGEN_OPTIONS	+= +GenerateGNUCode
@@ -148,8 +171,10 @@ EXTRA_CFLAGS	+= -g -D_DEBUG
 LD_FLAGS	+= -g
 else
 ifneq ($(USE_GCOV), true)
+ifndef IOS_CC
 EXTRA_CFLAGS	+= -O3 -fexpensive-optimizations
 EXTRA_CPPFLAGS	+= -fconserve-space
+endif
 endif
 ifeq ($(USE_NATIVE_PROFILER), false)
 EXTRA_CFLAGS	+= -s -fomit-frame-pointer
