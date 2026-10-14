@@ -91,8 +91,16 @@ inline unsigned int _rotr(unsigned int x, unsigned int y) {
 
 #else
 
-#  define BREAKPOINT __asm__ ("swi 0x9f0001")
-#  define panic()  __asm__(".word 0xE6000010")
+#  if defined(__clang__)
+// clang assembles inline asm in the current ISA mode (Thumb by default on
+// iOS armv7), where "swi 0x9f0001" is invalid (needs arm-mode, imm 0-255).
+// __builtin_trap() is ISA-agnostic and emits the right trap instruction.
+#    define BREAKPOINT __builtin_trap()
+#    define panic()    __builtin_trap()
+#  else
+#    define BREAKPOINT __asm__ ("swi 0x9f0001")
+#    define panic()  __asm__(".word 0xE6000010")
+#  endif
 inline unsigned int _rotr(unsigned int x, unsigned int y) {
     int result;
     asm("mov %0, %1, ror %2" : "=r" (result) : "r" (x), "r" (y));
