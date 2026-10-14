@@ -96,7 +96,33 @@ loop:
 }
 #endif // UNDER_ADS
 
-#if defined(__GNUC__) && defined(ARM)
+#if defined(__GNUC__) && defined(ARM) && defined(IOS)
+/* iOS (clang, Thumb-2): the legacy GNU/ARM inline asm below does not assemble
+ * (non-unified syntax, fixed register clobbers), so use portable C instead.
+ * Same contract: fill number_of_pixels 16-bit pixels at mem with value. */
+#include <stdint.h>
+void fast_pixel_set(void* mem, int value, int number_of_pixels) {
+    unsigned short *p = (unsigned short*)mem;
+    unsigned short v = (unsigned short)value;
+    uint32_t v32 = ((uint32_t)v) | (((uint32_t)v) << 16);
+
+    if (number_of_pixels <= 0) {
+        return;
+    }
+    if (((uintptr_t)p & 3) != 0) {
+        *p++ = v;
+        number_of_pixels--;
+    }
+    while (number_of_pixels >= 2) {
+        *(uint32_t*)p = v32;
+        p += 2;
+        number_of_pixels -= 2;
+    }
+    if (number_of_pixels > 0) {
+        *p = v;
+    }
+}
+#elif defined(__GNUC__) && defined(ARM)
 // For more info on GNU/ARM inline-asm, see
 // http://www.ibiblio.org/gferg/ldp/GCC-Inline-Assembly-HOWTO.html
 // http://lists.arm.linux.org.uk/pipermail/linux-arm/2005-July/010365.html
