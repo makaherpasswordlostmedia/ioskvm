@@ -656,7 +656,8 @@ ReturnOop Java_java_lang_System_getProperty0(JVM_SINGLE_ARG_TRAPS) {
       value = "generic";
     }
     else if (jvm_strcmp(name, "microedition.profiles") == 0) {
-      value = "";
+      // MIDP installer refuses to work with an empty value
+      value = "MIDP-2.1";
     }
 #endif
   }
