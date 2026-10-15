@@ -12,14 +12,14 @@ KVM_DIST  = $(KVM_ROOT)/build-ios/dist
 KVM_LIBS  = $(KVM_DIST)/lib
 
 APPLICATION_NAME = pspkvm
-pspkvm_FILES = main.m KVMAppDelegate.m KVMBridge.m KVMScreenView.m KVMPadView.m
+pspkvm_FILES = main.m KVMAppDelegate.m KVMBridge.m KVMScreenView.m KVMPadView.m KVMShims.c
 ADDITIONAL_CFLAGS += -O2 -fno-stack-protector -fobjc-arc \
 	-fno-modules -fno-cxx-modules -fno-implicit-modules -fno-implicit-module-maps \
 	-Wno-error=objc-property-no-attribute -Wno-error=property-attribute-mismatch
 pspkvm_CFLAGS = -DIOS -I$(SDK_ROOT)/usr/include \
 	-I$(KVM_ROOT)/javacall/implementation/ios_arm/midp -I$(KVM_ROOT)/javacall/implementation/ios_arm
 pspkvm_LDFLAGS = -L$(KVM_LIBS) -L$(SDK_ROOT)/usr/lib \
-	-lmidp -ljavacall -lcldc_vm -lpcsl_file -lpcsl_memory -lpcsl_network -lpcsl_print -lfreetype -lc++ \
+	-lmidp -ljavacall -lcldc_vm -lpcsl_file -lpcsl_string -lpcsl_memory -lpcsl_network -lpcsl_print -lfreetype -lc++ \
 	-framework UIKit -framework Foundation -framework QuartzCore -framework CoreGraphics \
 	-framework AVFoundation -framework CoreMedia -framework CoreVideo -framework AudioToolbox
 pspkvm_CODESIGN_FLAGS =
