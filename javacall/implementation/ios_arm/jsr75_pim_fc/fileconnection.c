@@ -1045,7 +1045,7 @@ javacall_result javacall_fileconnection_get_path_for_root(const javacall_utf16* 
                                                           javacall_utf16* /* OUT */ pathName,
                                                           int pathNameLen) {
 
-    static char* realroot_def[] = {"Documents/", "private/", "Music/", "Photos/", "Videos/", "Documents/", "Documents/", "Documents/"};
+    static char* realroot_def[] = {"root/", "private/", "music/", "photo/", "video/", "root/", "root/", "root/"};
     static char* root[] = {"root/", "private/", "music/", "photo/", "video/", "recordings/", "tones/", "graphics/"};
     static char* propname[] = {"root_dir", "private_dir", "music_dir", "photo_dir", "video_dir", "recordings_dir", "tones_dir", "graphics_dir"};
     int i, r;
@@ -1060,7 +1060,9 @@ javacall_result javacall_fileconnection_get_path_for_root(const javacall_utf16* 
     for (r = 0; r < sizeof(root)/sizeof(char*); r++) {
     	 if (realroot[r] == 0) {
     	 	if (JAVACALL_OK != javacall_get_property(propname[r], JAVACALL_JSR75_PROPERTY, &realroot[r]) ||
-    	 	     realroot[r] == NULL) {
+    	 	     realroot[r] == NULL ||
+    	 	     realroot[r][0] == 0 ||
+    	 	     strncmp(realroot[r], "ms0:", 4) == 0) { /* PSP leftovers in an old pspkvm.ini */
     	 		realroot[r] = realroot_def[r];
     	 	}
     	 }
