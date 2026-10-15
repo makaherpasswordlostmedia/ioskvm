@@ -1,0 +1,8 @@
+Package: com.pspkvm.ios
+Name: PSPKVM
+Version: 0.1
+Architecture: iphoneos-arm
+Description: J2ME (MIDP) emulator based on phoneME / PSPKVM
+Maintainer: pspkvm
+Author: pspkvm
+Section: Games
