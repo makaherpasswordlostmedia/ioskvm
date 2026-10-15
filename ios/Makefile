@@ -32,3 +32,8 @@ before-stage::
 	@mkdir -p "$(THEOS_STAGING_DIR)/Applications/pspkvm.app/kvm"
 	@cp -R $(KVM_DIST)/midp/* "$(THEOS_STAGING_DIR)/Applications/pspkvm.app/kvm/"
 	@cp $(KVM_ROOT)/psp/pspkvm.ini "$(THEOS_STAGING_DIR)/Applications/pspkvm.app/kvm/"
+
+# Make sure the final bundle always has its Info.plist (ipa/deb are built from the staged app)
+after-stage::
+	@cp Info.plist "$(THEOS_STAGING_DIR)/Applications/pspkvm.app/Info.plist"
+	@chmod 0755 "$(THEOS_STAGING_DIR)/DEBIAN/postinst" "$(THEOS_STAGING_DIR)/DEBIAN/postrm" 2>/dev/null || true
