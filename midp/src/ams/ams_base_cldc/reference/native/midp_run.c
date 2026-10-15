@@ -294,6 +294,15 @@ JVMSPI_GetSystemProperty(char* prop_name) {
 
     if (result == NULL) {
         result = (char *)getSystemProperty(prop_name);
+
+        /* never hand out an empty profile/configuration: the installer fails on it */
+        if (prop_name != NULL && (result == NULL || result[0] == 0)) {
+            if (strcmp(prop_name, "microedition.profiles") == 0) {
+                result = "MIDP-2.1";
+            } else if (strcmp(prop_name, "microedition.configuration") == 0) {
+                result = "CLDC-1.1";
+            }
+        }
     
         if (result == NULL && prop_name != NULL) {
             if (strcmp(prop_name, TIMEZONE_PROP_NAME) == 0) {
