@@ -108,7 +108,7 @@ public class DiscoveryApp extends MIDlet implements ItemCommandListener, Command
     private Command installLocCmd = new Command(
         Resource.getString(ResourceConstants.INSTALL), Command.ITEM, 1);
 
-    private String last_dir = "/ms0:";
+    private String last_dir = SuiteDownloadInfo.INSTALL_ROOT;
     
     /**
      * Create and initialize a new discovery application MIDlet.
@@ -123,7 +123,7 @@ public class DiscoveryApp extends MIDlet implements ItemCommandListener, Command
 
 
         
-        chooseMethod.append("Install from memory stick (ms0:/)", null);
+        chooseMethod.append("Install from root/ (Files app)", null);
         chooseMethod.append("Install from http", null);
         chooseMethod.addCommand(installLocCmd);
         chooseMethod.addCommand(endCmd);
@@ -169,7 +169,7 @@ public class DiscoveryApp extends MIDlet implements ItemCommandListener, Command
             
             if (chooseMethod.getSelectedIndex() == 0) {
             	  http_install = false;
-            	  defaultInstallListUrl = "ms0:/";
+            	  defaultInstallListUrl = SuiteDownloadInfo.INSTALL_ROOT;
             } else {
                 http_install = true;
                 defaultInstallListUrl = "http://";
@@ -180,10 +180,8 @@ public class DiscoveryApp extends MIDlet implements ItemCommandListener, Command
             if (http_install) {
                 getUrl();
             } else {
-                if (!defaultInstallListUrl.startsWith("ms0:/")) {
-                    //The saved url is somehow corruptted, recover it by "ms0:/"
-                    defaultInstallListUrl = "ms0:/";
-                }
+                // saved url may be stale (old "ms0:/" or outside root): reset it
+                defaultInstallListUrl = SuiteDownloadInfo.clampToRoot(defaultInstallListUrl);
                 last_dir = defaultInstallListUrl;
                 discoverSuitesToInstall(defaultInstallListUrl);
             }
@@ -213,6 +211,7 @@ public class DiscoveryApp extends MIDlet implements ItemCommandListener, Command
             	      install_dir = new String(info.url + new String("/"));
             	  }
             	  
+            	  install_dir = SuiteDownloadInfo.clampToRoot(install_dir);
             	  discoverSuitesToInstall(install_dir);
             	  last_dir = install_dir;
             } else {
@@ -252,6 +251,7 @@ public class DiscoveryApp extends MIDlet implements ItemCommandListener, Command
             	      install_dir = new String(info.url + new String("/"));
             	  }
             	  
+            	  install_dir = SuiteDownloadInfo.clampToRoot(install_dir);
             	  discoverSuitesToInstall(install_dir);
             	  last_dir = install_dir;
             } else {
@@ -625,8 +625,8 @@ public class DiscoveryApp extends MIDlet implements ItemCommandListener, Command
                     } else {
                         while (true) {
                             parent.installList = SuiteDownloadInfo.getDownloadInfoFromDir(url);
-                            if (parent.installList.size() <=0 && !url.equals("ms0:/")) {
-                                url = "ms0:/";                                
+                            if (parent.installList.size() <=0 && !url.equals(SuiteDownloadInfo.INSTALL_ROOT)) {
+                                url = SuiteDownloadInfo.INSTALL_ROOT;
                             } else {
                                 break;
                             }
