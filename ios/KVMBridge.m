@@ -1,5 +1,6 @@
 // Glue between UIKit and the phoneME/javacall port (ios_arm layer).
 #import "KVMBridge.h"
+#import "KVMLog.h"
 #import <UIKit/UIKit.h>
 #include <pthread.h>
 #include <unistd.h>
@@ -30,6 +31,7 @@ const char* pspkvm_ios_locale(void) {
 }
 
 void pspkvm_ios_screen_resized(int w, int h) {
+    KVMLOG("lcd", @"canvas resized to %dx%d", w, h);
     dispatch_async(dispatch_get_main_queue(), ^{
         [[NSNotificationCenter defaultCenter] postNotificationName:KVMScreenResizedNotification
             object:nil userInfo:@{@"w":@(w), @"h":@(h)}];
@@ -41,8 +43,12 @@ static NSString* const kBundleMarker = @".kvm_bundle_version";
 
 static void copyTree(NSString* from, NSString* to) {
     NSFileManager* fm = [NSFileManager defaultManager];
+    NSError* err = nil;
     [fm removeItemAtPath:to error:nil];
-    [fm copyItemAtPath:from toPath:to error:nil];
+    if ([fm copyItemAtPath:from toPath:to error:&err])
+        KVMLOG("sandbox", @"copied %@ -> %@", from.lastPathComponent, to);
+    else
+        KVMLOG("sandbox", @"ERROR copying %@ -> %@: %@", from, to, err.localizedDescription);
 }
 
 static NSString* prepareSandbox(void) {
@@ -59,14 +65,20 @@ static NSString* prepareSandbox(void) {
     NSString* res = [[NSBundle mainBundle] resourcePath];
     NSString* kvm = [res stringByAppendingPathComponent:@"kvm"];
 
+    KVMLOG("sandbox", @"root=%@ bundleVersion=%@ seededVersion=%@", root, ver, old ?: @"(none)");
     if (![old isEqualToString:ver]) {
+        KVMLOG("sandbox", @"build changed, re-seeding lib/ from bundle");
         copyTree([kvm stringByAppendingPathComponent:@"lib"], [root stringByAppendingPathComponent:@"lib"]);
         if (![fm fileExistsAtPath:[root stringByAppendingPathComponent:@"appdb"]])
             copyTree([kvm stringByAppendingPathComponent:@"appdb"], [root stringByAppendingPathComponent:@"appdb"]);
         for (NSString* f in @[@"pspkvm.ini", @"vmsettings.cfg"]) {
             NSString* dst = [root stringByAppendingPathComponent:f];
-            if (![fm fileExistsAtPath:dst])
-                [fm copyItemAtPath:[kvm stringByAppendingPathComponent:f] toPath:dst error:nil];
+            if (![fm fileExistsAtPath:dst]) {
+                NSError* e = nil;
+                if (![fm copyItemAtPath:[kvm stringByAppendingPathComponent:f] toPath:dst error:&e])
+                    KVMLOG("sandbox", @"ERROR seeding %@: %@", f, e.localizedDescription);
+                else KVMLOG("sandbox", @"seeded %@", f);
+            }
         }
         [ver writeToFile:markerPath atomically:YES encoding:NSUTF8StringEncoding error:nil];
     }
@@ -83,11 +95,13 @@ static void* vmThread(void* arg) {
         // initialised itself; do the same from a helper thread.
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 3 * NSEC_PER_SEC),
                        dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+            KVMLOG("vm", @"javanotify_start()");
             javanotify_start();
         });
     }
-    JavaTask();   // blocks until the VM exits
-    NSLog(@"[kvm] JavaTask returned");
+    KVMLOG("vm", @"JavaTask() entering");
+    int rc = JavaTask();   // blocks until the VM exits
+    KVMLOG("vm", @"JavaTask returned rc=%d (VM has exited)", rc);
     return NULL;
 }
 
@@ -96,10 +110,12 @@ void KVMStartVM(void) {
     if (started) return;
     started = YES;
 
+    KVMLogInit();
     NSString* root = prepareSandbox();
     chdir(root.fileSystemRepresentation);          // javacall_dir root is "."
     setenv("HOME", root.fileSystemRepresentation, 1);
 
+    KVMLOG("vm", @"cwd=%@, starting VM thread", root);
     javacall_logging_channel(JAVACALL_LOG_CHANNEL_STDOUT);
     pspkvm_ios_set_screen_size(240, 320);          // default MIDP canvas; MIDlets/settings may change it
 
@@ -111,5 +127,5 @@ void KVMStartVM(void) {
     pthread_detach(t);
 }
 
-void KVMPause(void)  { javanotify_pause(); }
-void KVMResume(void) { javanotify_resume(); }
+void KVMPause(void)  { KVMLOG("vm", @"pause"); javanotify_pause(); }
+void KVMResume(void) { KVMLOG("vm", @"resume"); javanotify_resume(); }

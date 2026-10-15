@@ -12,7 +12,7 @@ KVM_DIST  = $(KVM_ROOT)/build-ios/dist
 KVM_LIBS  = $(KVM_DIST)/lib
 
 APPLICATION_NAME = pspkvm
-pspkvm_FILES = main.m KVMAppDelegate.m KVMBridge.m KVMScreenView.m KVMPadView.m KVMShims.c
+pspkvm_FILES = main.m KVMAppDelegate.m KVMBridge.m KVMLog.m KVMScreenView.m KVMPadView.m KVMShims.c
 ADDITIONAL_CFLAGS += -O2 -fno-stack-protector -fobjc-arc \
 	-fno-modules -fno-cxx-modules -fno-implicit-modules -fno-implicit-module-maps \
 	-Wno-error=objc-property-no-attribute -Wno-error=property-attribute-mismatch
