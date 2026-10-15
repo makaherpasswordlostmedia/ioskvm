@@ -25,6 +25,9 @@ pspkvm_LDFLAGS = -L$(KVM_LIBS) -L$(SDK_ROOT)/usr/lib \
 pspkvm_CODESIGN_FLAGS =
 pspkvm_PLIST = Info.plist
 
+# git/zip downloads drop the exec bit; dpkg requires 0555..0775 on maintainer scripts
+$(shell chmod 0755 layout/DEBIAN/postinst layout/DEBIAN/postrm 2>/dev/null)
+
 include $(THEOS_MAKE_PATH)/application.mk
 
 # Stage the runtime tree (lib/, appdb/, ini) into the bundle as kvm/
