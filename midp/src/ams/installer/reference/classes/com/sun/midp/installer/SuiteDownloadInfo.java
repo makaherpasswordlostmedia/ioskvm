@@ -36,6 +36,21 @@ import java.io.IOException;
  * display it to a user, in a list.
  */
 class SuiteDownloadInfo {
+    /**
+     * Local directory the installer browses (iOS: Documents/pspkvm/root/,
+     * visible in the Files app). Relative to the process cwd, which
+     * KVMBridge sets to Documents/pspkvm. Was "ms0:/" on the PSP.
+     */
+    static final String INSTALL_ROOT = "root/";
+
+    /** Keep a path inside INSTALL_ROOT; anything else falls back to it. */
+    static String clampToRoot(String dir) {
+        if (dir == null || dir.indexOf("..") >= 0 || !dir.startsWith(INSTALL_ROOT)) {
+            return INSTALL_ROOT;
+        }
+        return dir;
+    }
+
     /** URL for the JAD of this suite */
     String url;
     /** label to display to the User for this suite */
@@ -109,8 +124,12 @@ class SuiteDownloadInfo {
           //suites.addElement(info);
           
           
+          boolean atRoot = INSTALL_ROOT.equals(dir);
           int handle = openDir(dir);
           while (handle != 0 && (info = getNextFileInDir(dir, handle)) != null) {
+            if (atRoot && info.dir && info.label.equals("..")) {
+                continue; // don't let the user climb out of the sandbox
+            }
             if (info.url.toLowerCase().endsWith(".jad") ||
                     info.url.toLowerCase().endsWith(".jar") ||
                     (info.dir && !info.label.equals("."))) {

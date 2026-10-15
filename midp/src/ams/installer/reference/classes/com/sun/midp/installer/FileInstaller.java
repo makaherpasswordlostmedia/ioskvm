@@ -184,7 +184,8 @@ System.out.println("FileInstaller.downloadJAR:"+jarFilename);
             return jarUrl;
         }
 
-        if (jarUrl.startsWith("ms0:/") || jarUrl.startsWith("/")) {
+        if (jarUrl.startsWith("ms0:/") || jarUrl.startsWith("/")
+                || jarUrl.startsWith(SuiteDownloadInfo.INSTALL_ROOT)) {
             //absolute path
             return jarUrl;
         }
