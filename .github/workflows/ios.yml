@@ -375,7 +375,9 @@ jobs:
       - name: Pack .ipa
         run: |
           rm -rf ipa_build; mkdir -p ipa_build/Payload
-          APP_DIR="$(find ios/.theos -type d -name 'pspkvm.app' | head -n1)"
+          APP_DIR="ios/.theos/_/Applications/pspkvm.app"
+          [ -f "$APP_DIR/Info.plist" ] || { echo "::error::$APP_DIR/Info.plist missing"; exit 1; }
+          [ -x "$APP_DIR/pspkvm" ] || { echo "::error::$APP_DIR/pspkvm missing"; exit 1; }
           cp -a "$APP_DIR" ipa_build/Payload/
           (cd ipa_build && zip -rq ../ios/packages/PSPKVM-${{ steps.commit-info.outputs.hash }}-armv7-iOS7.ipa Payload)
 
