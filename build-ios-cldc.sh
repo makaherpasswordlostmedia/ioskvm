@@ -256,7 +256,7 @@ if [ "${BUILD_MIDP}" = "true" ] && [ "${ERASE_BUILD_OUTPUT}" != "true" ]; then
 	stage_lib libmidp     ${MIDP_DIR}/build/javacall_ios/output/bin
 	stage_lib libjavacall ${JAVACALL_OUTPUT_DIR}/lib
 	stage_lib libcldc_vm  ${CLDC_DIR}/build/javacall_ios_gcc/dist/lib
-	for l in libpcsl_file libpcsl_memory libpcsl_network libpcsl_print; do
+	for l in libpcsl_file libpcsl_string libpcsl_memory libpcsl_network libpcsl_print; do
 		stage_lib ${l} ${PCSL_OUTPUT_DIR}
 	done
 
