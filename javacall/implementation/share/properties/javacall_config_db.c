@@ -421,8 +421,19 @@ javacall_handle configdb_load_from_fs(javacall_utf16* unicodeFileName, int fileN
                              JAVACALL_FILE_O_RDWR | JAVACALL_FILE_O_CREAT,
                              &file_handle);
     if (res != JAVACALL_OK) {
-        javacall_print("javacall_configdb_load(): ERROR - Can't open the dump file!\n");
-        return NULL;
+        /* maybe the file is read-only (wrong owner/permissions) - try read-only */
+        res = javacall_file_open(unicodeFileName,
+                                 fileNameLen,
+                                 JAVACALL_FILE_O_RDONLY,
+                                 &file_handle);
+    }
+    if (res != JAVACALL_OK) {
+        /*
+         * Could not open the ini at all: continue with an empty database so the
+         * built-in defaults (microedition.profiles etc.) can still be applied.
+         */
+        javacall_print("javacall_configdb_load(): ERROR - Can't open the dump file! Using empty config.\n");
+        return (javacall_handle)javacall_string_db_new(0);
     }
 
     sec[0] = 0;
