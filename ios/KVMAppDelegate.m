@@ -19,7 +19,7 @@
     [self.view addSubview:_pad];
 }
 - (BOOL)prefersStatusBarHidden { return YES; }
-- (NSUInteger)supportedInterfaceOrientations { return UIInterfaceOrientationMaskAll; }
+- (UIInterfaceOrientationMask)supportedInterfaceOrientations { return UIInterfaceOrientationMaskAll; }
 - (BOOL)shouldAutorotate { return YES; }
 - (void)viewDidLayoutSubviews {
     CGRect b = self.view.bounds;
