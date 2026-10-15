@@ -227,3 +227,45 @@ then
 		fi
 	fi
 fi
+
+# ---------------------------------------------------------------------------
+# Stage everything the Theos app (ios/Makefile) links against into
+#   build-ios/dist/lib      static libs (libmidp, libjavacall, libcldc_vm, libpcsl_*)
+#   build-ios/dist/midp     runtime tree (lib/, appdb/) copied into the .app
+# ---------------------------------------------------------------------------
+if [ "${BUILD_MIDP}" = "true" ] && [ "${ERASE_BUILD_OUTPUT}" != "true" ]; then
+	DIST=${WS_ROOT}/build-ios/dist
+	rm -rf ${DIST}
+	mkdir -p ${DIST}/lib ${DIST}/midp
+
+	# pick "$1" (release name) or its _g (debug) variant, searching under $2
+	stage_lib() {
+		name=$1; dir=$2
+		f=$(find ${dir} -type f -name "${name}.a" 2>/dev/null | head -n1)
+		if [ -z "${f}" ]; then
+			f=$(find ${dir} -type f -name "${name}_g.a" 2>/dev/null | head -n1)
+		fi
+		if [ -z "${f}" ]; then
+			echo "ERROR: ${name}.a not found under ${dir}"
+			exit 1
+		fi
+		echo "stage: ${f} -> ${DIST}/lib/${name}.a"
+		cp "${f}" "${DIST}/lib/${name}.a"
+	}
+
+	stage_lib libmidp     ${MIDP_DIR}/build/javacall_ios/output/bin
+	stage_lib libjavacall ${JAVACALL_OUTPUT_DIR}/lib
+	stage_lib libcldc_vm  ${CLDC_DIR}/build/javacall_ios_gcc/dist/lib
+	for l in libpcsl_file libpcsl_memory libpcsl_network libpcsl_print; do
+		stage_lib ${l} ${PCSL_OUTPUT_DIR}
+	done
+
+	MIDP_OUT=${MIDP_DIR}/build/javacall_ios/output
+	for d in lib appdb; do
+		if [ -d ${MIDP_OUT}/${d} ]; then
+			cp -R ${MIDP_OUT}/${d} ${DIST}/midp/
+		fi
+	done
+	echo "Staged into ${DIST}:"
+	ls -l ${DIST}/lib ${DIST}/midp
+fi
