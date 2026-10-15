@@ -44,6 +44,36 @@ static const char jsr75_prefix[] = "jsr75:";
 static const char ams_prefix[] = "ams:";
 static const char device_prefix[] = "device:";
 
+/*
+ * Defaults for application properties that the MIDP installer / runtime
+ * refuse to work without. With USE_PROPERTIES_FROM_FS the only source of
+ * properties is pspkvm.ini, so an ini without an [application] section
+ * (or an old copy that is already on the device) used to leave them unset,
+ * which made every install fail with
+ * "java.lang.RuntimeException: system property microedition.profiles not set".
+ * Values already present in the ini are never overwritten.
+ */
+static const char* const required_application_defaults[][2] = {
+    { "microedition.configuration", "CLDC-1.1" },
+    { "microedition.profiles",      "MIDP-2.1" },
+    { NULL, NULL }
+};
+
+static void apply_required_application_defaults(void) {
+    int i;
+    for (i = 0; required_application_defaults[i][0] != NULL; i++) {
+        char* cur = NULL;
+        if (JAVACALL_OK != javacall_get_property(required_application_defaults[i][0],
+                                                  JAVACALL_APPLICATION_PROPERTY, &cur)
+            || cur == NULL || cur[0] == 0) {
+            /* missing or empty -> force the default */
+            javacall_set_property(required_application_defaults[i][0],
+                                  required_application_defaults[i][1],
+                                  1, JAVACALL_APPLICATION_PROPERTY);
+        }
+    }
+}
+
 /**
  * Initializes the configuration sub-system.
  *
@@ -61,6 +91,7 @@ javacall_result javacall_initialize_configurations(void) {
         return JAVACALL_FAIL;
     }
     javacall_printf("load ok\n");
+    apply_required_application_defaults();
     return JAVACALL_OK;
 }
 
