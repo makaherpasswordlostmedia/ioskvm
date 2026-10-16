@@ -216,7 +216,9 @@ static void* KeyThread(void *argp)
 		    keys = javacall_keymap_size();
 		    shift = pspKey & (SHIFT_KEY1 | SHIFT_KEY2);
 		    lastShift = lastPspKey & (SHIFT_KEY1 | SHIFT_KEY2);
-		    rotate = javacall_devemu_get_rotation(javacall_devemu_get_current_device());
+		    /* iOS: the on-screen pad is a fixed UIView and the canvas is never rotated on screen,
+		    	 * so the PSP "rotate the d-pad with the screen" remap would swap directions. Disabled. */
+		    	rotate = 0; (void)javacall_devemu_get_rotation;
 
 		    for (i = 0 ; i < keys; i++) {
 		    	//printf("keymap[i].nativekey:%08x, javakey:%d\n", keymap[i].nativeKey, keymap[i].javaKey);
