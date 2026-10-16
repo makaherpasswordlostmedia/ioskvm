@@ -126,7 +126,9 @@ void pspkvm_ios_lcd_refresh(void) {
 /* RGB565 -> 0xFFRRGGBB lookup for the two 5/6 bit channels would cost cache on A4;
  * plain shifts with bit replication are cheap enough and exact. */
 static inline uint32_t px565(unsigned short c) {
-    uint32_t r = (c >> 11) & 0x1F, g = (c >> 5) & 0x3F, b = c & 0x1F;
+    /* The iOS midp build defines BIG_ENDIAN_FRAMEBUFFER (inherited from the PSP port), so the VM
+     * emits PSP-style 5650: red in the LOW 5 bits, blue in the HIGH 5 bits (BGR565). */
+    uint32_t r = c & 0x1F, g = (c >> 5) & 0x3F, b = (c >> 11) & 0x1F;
     r = (r << 3) | (r >> 2);
     g = (g << 2) | (g >> 4);
     b = (b << 3) | (b >> 2);
