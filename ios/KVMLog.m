@@ -2,6 +2,9 @@
 #import <UIKit/UIKit.h>
 #include <execinfo.h>
 #include <signal.h>
+#include <string.h>
+#include <sys/ucontext.h>
+#include <mach-o/dyld.h>
 #include <fcntl.h>
 #include <pthread.h>
 #include <sys/stat.h>
@@ -100,15 +103,32 @@ static void captureStdio(void) {
 }
 
 // ---- crash reporting (async-signal-safe: write() + backtrace_symbols_fd only) ----
-static void sigHandler(int sig) {
-    static const char hdr[] = "\n!!!! FATAL SIGNAL, native backtrace follows:\n";
-    char num[16]; int len = 0; int v = sig;
-    char tmp[8]; int tl = 0;
-    do { tmp[tl++] = '0' + v % 10; v /= 10; } while (v);
-    while (tl) num[len++] = tmp[--tl];
+static void wstr(const char* s) { write(gLogFd, s, strlen(s)); }
+static void whex(const char* label, unsigned long v) {
+    char b[32]; int n = 0;
+    b[n++] = '0'; b[n++] = 'x';
+    for (int sh = (int)sizeof(unsigned long) * 8 - 4; sh >= 0; sh -= 4) b[n++] = "0123456789abcdef"[(v >> sh) & 0xf];
+    b[n++] = ' ';
+    wstr(label); write(gLogFd, b, n);
+}
+
+static void sigHandler(int sig, siginfo_t* si, void* ctx) {
     if (gLogFd >= 0) {
-        write(gLogFd, hdr, sizeof(hdr) - 1);
-        write(gLogFd, "signal ", 7); write(gLogFd, num, len); write(gLogFd, "\n", 1);
+        wstr("\n!!!! FATAL SIGNAL, native backtrace follows:\n");
+        whex("signal=", (unsigned long)sig);
+        whex("code=", (unsigned long)si->si_code);
+        whex("fault_addr=", (unsigned long)si->si_addr);
+        wstr("\n");
+#if defined(__arm__)
+        ucontext_t* uc = (ucontext_t*)ctx;
+        if (uc && uc->uc_mcontext) {
+            _STRUCT_ARM_THREAD_STATE* r = &uc->uc_mcontext->__ss;
+            whex("pc=", r->__pc); whex("lr=", r->__lr); whex("sp=", r->__sp); whex("cpsr=", r->__cpsr); wstr("\n");
+            static const char* rn[13] = {"r0=","r1=","r2=","r3=","r4=","r5=","r6=","r7=","r8=","r9=","r10=","r11=","r12="};
+            for (int i = 0; i < 13; i++) whex(rn[i], r->__r[i]);
+            wstr("\n");
+        }
+#endif
         void* frames[64];
         int n = backtrace(frames, 64);
         backtrace_symbols_fd(frames, n, gLogFd);
@@ -140,7 +160,12 @@ void KVMLogInit(void) {
 
     NSSetUncaughtExceptionHandler(excHandler);
     int sigs[] = { SIGSEGV, SIGBUS, SIGILL, SIGABRT, SIGFPE, SIGTRAP };
-    for (size_t i = 0; i < sizeof(sigs) / sizeof(sigs[0]); i++) signal(sigs[i], sigHandler);
+    struct sigaction sa;
+    memset(&sa, 0, sizeof(sa));
+    sa.sa_sigaction = sigHandler;
+    sa.sa_flags = SA_SIGINFO;
+    sigemptyset(&sa.sa_mask);
+    for (size_t i = 0; i < sizeof(sigs) / sizeof(sigs[0]); i++) sigaction(sigs[i], &sa, NULL);
 
     struct utsname u; uname(&u);
     NSDictionary* info = [[NSBundle mainBundle] infoDictionary];
@@ -152,6 +177,8 @@ void KVMLogInit(void) {
     KVMLogf("init", @"RAM=%.0f MB cpus=%lu", [NSProcessInfo processInfo].physicalMemory / 1048576.0,
             (unsigned long)[NSProcessInfo processInfo].processorCount);
     KVMLogf("init", @"log file: %@", gLogPath);
+    KVMLogf("init", @"main image ASLR slide=0x%lx (subtract from crash addresses before nm/atos)",
+            (unsigned long)_dyld_get_image_vmaddr_slide(0));
 
     // App lifecycle / memory pressure
     NSNotificationCenter* nc = [NSNotificationCenter defaultCenter];
