@@ -30,9 +30,13 @@
 void FinalizerConsDesc::run_finalizer( void ) {
   void (*native_finalizer)();
   unsigned char *remember_kni_parameter_base;
-  
+
+  // NOTE: 'r' must outlive the native finalizer call below. _kni_parameter_base
+  // points at r()._obj, so if r lived in the inner block its stack slot could be
+  // reused by the compiler before the call (clang -O2 on armv7 does this), and
+  // KNI_GetThisPointer() would then read a garbage/NULL receiver -> SIGSEGV.
+  JavaOop::Raw r = referent();
   {
-    JavaOop::Raw r = referent();
 
     if (TraceFinalization) {
       TTY_TRACE_CR(("TraceGC: finalizer 0x%p retrieved", (void*) r));
