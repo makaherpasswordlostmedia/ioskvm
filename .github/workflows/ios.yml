@@ -21,6 +21,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Fix startup crash (strcpy(sec, sec) -> abort in __strcpy_chk)
+        run: |
+          # configdb_load_from_fs() copied `sec` onto itself; overlapping strcpy trips
+          # FORTIFY on iOS and aborts with SIGABRT right after "javacall_configdb_load...".
+          # sscanf already stored the section name in `sec`, so the line is just removed.
+          F=javacall/implementation/share/properties/javacall_config_db.c
+          sed -i '/^[[:space:]]*strcpy(sec, sec);[[:space:]]*$/d' "$F"
+          if grep -nE 'strcpy\(sec, *sec\)' "$F"; then
+            echo "::error::strcpy(sec, sec) is still present in $F"; exit 1
+          fi
+          echo "configdb strcpy fix applied"
+
       - name: Apply JSR 184 (M3G) patch and run host tests
         run: |
           # Everything for JSR 184 (jsr184/, makefile + build script edits) travels inside this file.
