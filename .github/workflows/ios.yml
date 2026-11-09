@@ -1,4 +1,4 @@
-name: PSPKVM iOS armv7 (J2ME emulator, iOS 7.0+)
+name: PSPKVM iOS armv7 (J2ME emulator, iOS 5.0+)
 
 # Pipeline adapted from caprice32ios/ios-build.yml: same Theos + L1ghtmann vanilla-clang toolchain,
 # libc++ __config_site fix, iPhoneOS 9.3 SDK + module.map fix, freetype from source.
@@ -11,15 +11,1010 @@ on:
 
 env:
   IOS_SDK_VERSION: "9.3"
-  IOS_DEPLOY_TARGET: "7.0"
+  IOS_DEPLOY_TARGET: "5.0"
 
 jobs:
   build-ios-armv7:
-    name: Build (Theos / iOS 7.0+ / armv7)
+    name: Build (Theos / iOS 5.0+ / armv7)
     runs-on: ubuntu-24.04      # the L1ghtmann toolchain needs glibc >= 2.38 (as in your WL4 workflow)
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
+
+      - name: Port to iOS 5.0 (apply source patch)
+        run: |
+          # Self-contained: this step carries every source change of the iOS 5 port
+          # (STL-free settings store, compiler-rt shim, MMAPI for iOS 5, Makefile/Info.plist, ...).
+          cat > /tmp/ios5-port.patch <<'KVM_IOS5_PATCH_EOF'
+          diff -ruN -x .github -x README.md orig/build-ios-cldc.sh ioskvm-master/build-ios-cldc.sh
+          --- orig/build-ios-cldc.sh	2026-11-08 21:39:57.476396936 +0000
+          +++ ioskvm-master/build-ios-cldc.sh	2026-11-08 21:39:59.154507041 +0000
+          @@ -58,7 +58,8 @@
+           # ---- iOS toolchain (override from the environment / CI) ----
+           : "${THEOS:?set THEOS to your Theos checkout}"
+           export IOS_SDK="${IOS_SDK:-$THEOS/sdks/iPhoneOS9.3.sdk}"
+          -export IOS_MIN="${IOS_MIN:-7.0}"
+          +# Deployment target. 5.0 = iPhone 3GS/4/4S, iPad 1/2, iPod touch 3/4 (iOS 5.x). Raise it to build for newer OSes only.
+          +export IOS_MIN="${IOS_MIN:-5.0}"
+           TOOLBIN="$THEOS/toolchain/linux/iphone/bin"
+           export IOS_CC="${IOS_CC:-$TOOLBIN/clang}"
+           export IOS_CXX="${IOS_CXX:-$TOOLBIN/clang++}"
+          @@ -66,7 +67,7 @@
+           export IOS_FREETYPE_INC="${IOS_FREETYPE_INC:-$IOS_SDK/usr/include/freetype2}"
+           # Vanilla (non-Apple) clang: no -arch / -miphoneos-version-min, select the target with --target
+           export IOS_TARGET_FLAGS="${IOS_TARGET_FLAGS:---target=armv7-apple-ios$IOS_MIN -isysroot $IOS_SDK}"
+          -export IOS_CFLAGS="${IOS_CFLAGS:-$IOS_TARGET_FLAGS -O2 -fno-strict-aliasing -fno-stack-protector -fno-modules -fno-implicit-modules -fno-implicit-module-maps -Wno-error -Wno-register -Wno-reserved-user-defined-literal -Wno-implicit-function-declaration -Wno-int-conversion -Wno-incompatible-function-pointer-types -Wno-c++11-narrowing -I$IOS_FREETYPE_INC}"
+          +export IOS_CFLAGS="${IOS_CFLAGS:-$IOS_TARGET_FLAGS -O2 -D_FORTIFY_SOURCE=0 -fno-strict-aliasing -fno-stack-protector -fno-modules -fno-implicit-modules -fno-implicit-module-maps -Wno-error -Wno-register -Wno-reserved-user-defined-literal -Wno-implicit-function-declaration -Wno-int-conversion -Wno-incompatible-function-pointer-types -Wno-c++11-narrowing -I$IOS_FREETYPE_INC}"
+           # JDK_DIR: JDK able to emit 1.3-level class files for the CLDC preverifier (JDK 8 or older)
+           : "${JDK_DIR:?set JDK_DIR}"
+           export JDK_DIR
+          diff -ruN -x .github -x README.md orig/cldc/build/javacall_ios_gcc/ios.make ioskvm-master/cldc/build/javacall_ios_gcc/ios.make
+          --- orig/cldc/build/javacall_ios_gcc/ios.make	2026-11-08 21:39:57.477569934 +0000
+          +++ ioskvm-master/cldc/build/javacall_ios_gcc/ios.make	2026-11-08 21:39:59.154773557 +0000
+          @@ -1,10 +1,10 @@
+           # Cross toolchain for the *target* (armv7 iOS). Host tools use the host gcc -m32.
+           # Defaults mirror build-ios-cldc.sh / the CI (vanilla clang from the Theos Linux iOS toolchain).
+           IOS_SDK    ?= $(THEOS)/sdks/iPhoneOS9.3.sdk
+          -IOS_MIN    ?= 7.0
+          +IOS_MIN    ?= 5.0
+           IOS_CC     ?= $(THEOS)/toolchain/linux/iphone/bin/clang
+           IOS_CXX    ?= $(THEOS)/toolchain/linux/iphone/bin/clang++
+           IOS_AR     ?= $(THEOS)/toolchain/linux/iphone/bin/llvm-ar
+           IOS_TARGET_FLAGS ?= --target=armv7-apple-ios$(IOS_MIN) -isysroot $(IOS_SDK)
+          -IOS_CFLAGS ?= $(IOS_TARGET_FLAGS) -O2 -fno-strict-aliasing -fno-stack-protector -fno-modules -fno-implicit-modules -fno-implicit-module-maps -Wno-error -Wno-register -Wno-reserved-user-defined-literal -Wno-implicit-function-declaration -Wno-int-conversion -Wno-incompatible-function-pointer-types -Wno-c++11-narrowing
+          +IOS_CFLAGS ?= $(IOS_TARGET_FLAGS) -O2 -D_FORTIFY_SOURCE=0 -fno-strict-aliasing -fno-stack-protector -fno-modules -fno-implicit-modules -fno-implicit-module-maps -Wno-error -Wno-register -Wno-reserved-user-defined-literal -Wno-implicit-function-declaration -Wno-int-conversion -Wno-incompatible-function-pointer-types -Wno-c++11-narrowing
+           export IOS_CC IOS_CXX IOS_AR IOS_CFLAGS
+          diff -ruN -x .github -x README.md orig/ext/pspkvm/src/native/ios/vmsettings_store.cpp ioskvm-master/ext/pspkvm/src/native/ios/vmsettings_store.cpp
+          --- orig/ext/pspkvm/src/native/ios/vmsettings_store.cpp	2026-11-08 21:39:57.700406194 +0000
+          +++ ioskvm-master/ext/pspkvm/src/native/ios/vmsettings_store.cpp	2026-11-09 10:02:24.481143352 +0000
+          @@ -1,227 +1,171 @@
+           /**
+            * @file vmsettings_store.cpp
+            *
+          - * Contains the real storage for the vmsettings
+          + * Storage for the vmsettings. STL-free on purpose: the old libc++ shipped with iOS 5 is
+          + * ABI-incompatible with the modern libc++ headers, so only libc (stdio/malloc) is used.
+          + * On-disk format is unchanged: u32 count, then per entry (sorted by key) u32 len + jchars
+          + * for the key and the same for the value (native endianness).
+            */
+          -
+          -#include <string>
+          -#include <map>
+          -#include <iostream>
+          -#include <fstream>
+          -#include <cstring>
+          +#include <stdio.h>
+          +#include <stdlib.h>
+          +#include <string.h>
+           #include "vmsettings_store.h"
+           
+          -using namespace std;
+          -
+           static const char* fname = "vmsettings.cfg";
+           static bool initialized = false;
+           static bool modified = false;
+           
+          -// Character traits for 16-bit jchar. Newer libc++ (clang 15+) no longer
+          -// provides a generic std::char_traits<T>, so basic_string<jchar> needs
+          -// its own traits.
+          -struct jchar_traits {
+          -	typedef jchar char_type;
+          -	typedef unsigned int int_type;
+          -	typedef streamoff off_type;
+          -	typedef streampos pos_type;
+          -	typedef mbstate_t state_type;
+          -
+          -	static void assign(char_type& r, const char_type& a) { r = a; }
+          -	static bool eq(char_type a, char_type b) { return a == b; }
+          -	static bool lt(char_type a, char_type b) { return a < b; }
+          -	static int compare(const char_type* a, const char_type* b, size_t n) {
+          -		for (size_t i = 0; i < n; i++) {
+          -			if (a[i] < b[i]) return -1;
+          -			if (b[i] < a[i]) return 1;
+          -		}
+          -		return 0;
+          -	}
+          -	static size_t length(const char_type* s) {
+          -		size_t n = 0;
+          -		while (s[n] != 0) n++;
+          -		return n;
+          -	}
+          -	static const char_type* find(const char_type* s, size_t n, const char_type& c) {
+          -		for (size_t i = 0; i < n; i++) if (s[i] == c) return s + i;
+          -		return 0;
+          -	}
+          -	static char_type* move(char_type* d, const char_type* s, size_t n) {
+          -		if (n) memmove(d, s, n * sizeof(char_type));
+          -		return d;
+          -	}
+          -	static char_type* copy(char_type* d, const char_type* s, size_t n) {
+          -		if (n) memcpy(d, s, n * sizeof(char_type));
+          -		return d;
+          -	}
+          -	static char_type* assign(char_type* d, size_t n, char_type c) {
+          -		for (size_t i = 0; i < n; i++) d[i] = c;
+          -		return d;
+          -	}
+          -	static char_type to_char_type(int_type c) { return (char_type)c; }
+          -	static int_type to_int_type(char_type c) { return (int_type)c; }
+          -	static bool eq_int_type(int_type a, int_type b) { return a == b; }
+          -	static int_type eof() { return (int_type)-1; }
+          -	static int_type not_eof(int_type c) { return c == eof() ? 0 : c; }
+          -};
+          -
+          -// A single Unicode string
+          -typedef basic_string<jchar, jchar_traits> ustring;
+          -
+          -// An associative map of Unicode strings
+          -typedef map<ustring, ustring> ustringmap;
+          -static ustringmap properties;
+          -
+          -// Write a ustring
+          -static void write(ostream& o, const ustring& u) {
+          -	unsigned int l = u.length();
+          -	o.write((char*)&l, sizeof(l));
+          -	o.write((char*)u.data(), l*sizeof(jchar)); }
+          -	
+          -// Read a ustring
+          -static void read(istream& i, ustring& u) {
+          -	u.clear();
+          -	unsigned int l = 0;
+          -	i.read((char*)&l, sizeof(l));
+          -	while(l>0) {
+          -		jchar t;
+          -		i.read((char*)&t, sizeof(t));
+          -		u.push_back(t);
+          -		--l; } } 
+          -
+          -// Write a ustringmap
+          -static void write(ostream& o, const ustringmap& m) {
+          -	unsigned int l = m.size();
+          -	o.write((char*)&l, sizeof(l));
+          -	ustringmap::iterator ix = properties.begin();
+          -	while (ix != properties.end()) {
+          -		write(o, ix->first);
+          -		write(o, ix->second);
+          -		++ix; } }
+          -		
+          -// Read a ustringmap
+          -static void read(istream& i, ustringmap& m) {
+          -	m.clear();
+          -	unsigned int l = 0;
+          -	i.read((char*)&l, sizeof(l));
+          -	while(l>0) {
+          -		ustring k, v;
+          -		read(i, k);
+          -		read(i, v);
+          -		m[k]=v;
+          -		--l; } }
+          -		
+          -// Init--makes sure read gets done
+          -static void vmsettings_init() {
+          -	if (initialized) {
+          +struct Entry { jchar* k; unsigned kl; jchar* v; unsigned vl; };   // k/v are NUL-terminated copies
+          +static Entry* entries = 0;
+          +static unsigned ecount = 0, ecap = 0;
+          +static jchar emptystr[1] = { 0 };
+          +
+          +static const unsigned MAXLEN = 1u << 20;      // sanity limit for corrupt files (jchars)
+          +static const unsigned MAXENTRIES = 1u << 16;
+          +
+          +static jchar* dup(const jchar* s, unsigned n) {
+          +	jchar* p = (jchar*)malloc((n + 1) * sizeof(jchar));
+          +	if (!p) return 0;
+          +	if (n) memcpy(p, s, n * sizeof(jchar));
+          +	p[n] = 0;
+          +	return p;
+          +}
+          +
+          +// Same ordering as std::basic_string::compare: lexicographic, shorter prefix first
+          +static int cmp(const jchar* a, unsigned al, const jchar* b, unsigned bl) {
+          +	unsigned n = al < bl ? al : bl;
+          +	for (unsigned i = 0; i < n; i++) {
+          +		if (a[i] < b[i]) return -1;
+          +		if (b[i] < a[i]) return 1; }
+          +	return al < bl ? -1 : (al > bl ? 1 : 0); }
+          +
+          +// Binary search: index of key, or insertion point (found=false)
+          +static unsigned lookup(const jchar* k, unsigned kl, bool* found) {
+          +	unsigned lo = 0, hi = ecount;
+          +	while (lo < hi) {
+          +		unsigned mid = lo + (hi - lo) / 2;
+          +		int c = cmp(entries[mid].k, entries[mid].kl, k, kl);
+          +		if (c == 0) { *found = true; return mid; }
+          +		if (c < 0) lo = mid + 1; else hi = mid; }
+          +	*found = false;
+          +	return lo; }
+          +
+          +static void put(const jchar* k, unsigned kl, const jchar* v, unsigned vl) {
+          +	bool found;
+          +	unsigned ix = lookup(k, kl, &found);
+          +	jchar* nv = dup(v, vl);
+          +	if (!nv) return;
+          +	if (found) {
+          +		free(entries[ix].v);
+          +		entries[ix].v = nv; entries[ix].vl = vl;
+           		return; }
+          -	ifstream i(fname);
+          -	if (!i.is_open()) {
+          -		// Valid on first run
+          -		initialized=true;
+          -		return; }
+          -	read(i, properties);
+          -	initialized=true; }
+          -
+          -// Internal (C++) set
+          -static void _vmsettings_set(const jchar* k, unsigned int kl,
+          -	const jchar* v, unsigned int vl) {
+          -		vmsettings_init();
+          -		ustring ks(k, kl);
+          -		ustring vs(v, vl);
+          -		properties[ks]=vs;
+          -		modified = true; }
+          -		
+          -// Internal (C++) get
+          -static void _vmsettings_get(const jchar* k, unsigned int kl,
+          -	const jchar** v, unsigned int* vl) {
+          -		vmsettings_init();
+          -		ustring ks(k, kl);
+          -		ustringmap::iterator i = properties.find(ks);
+          -		if (i==properties.end()) {
+          -			// No such value. Return empty string
+          -			*vl = 0;
+          -			return; }
+          -		*v = i->second.data();
+          -		*vl = i->second.length(); }
+          +	jchar* nk = dup(k, kl);
+          +	if (!nk) { free(nv); return; }
+          +	if (ecount == ecap) {
+          +		unsigned nc = ecap ? ecap * 2 : 32;
+          +		Entry* ne = (Entry*)realloc(entries, nc * sizeof(Entry));
+          +		if (!ne) { free(nk); free(nv); return; }
+          +		entries = ne; ecap = nc; }
+          +	memmove(&entries[ix + 1], &entries[ix], (ecount - ix) * sizeof(Entry));
+          +	entries[ix].k = nk; entries[ix].kl = kl;
+          +	entries[ix].v = nv; entries[ix].vl = vl;
+          +	ecount++; }
+          +
+          +static bool read_str(FILE* f, jchar** out, unsigned* len) {
+          +	unsigned l = 0;
+          +	if (fread(&l, sizeof(l), 1, f) != 1 || l > MAXLEN) return false;
+          +	jchar* p = (jchar*)malloc((l + 1) * sizeof(jchar));
+          +	if (!p) return false;
+          +	if (l && fread(p, sizeof(jchar), l, f) != l) { free(p); return false; }
+          +	p[l] = 0; *out = p; *len = l;
+          +	return true; }
+          +
+          +static void write_str(FILE* f, const jchar* s, unsigned l) {
+          +	fwrite(&l, sizeof(l), 1, f);
+          +	if (l) fwrite(s, sizeof(jchar), l, f); }
+           
+          -// Boundary for ANSI strings in setustringfromascii() 
+          -static const size_t MAXASCIISTR = 1024; 
+          -
+          -// Conversion util for use with the C layers speaking 8-bit--packs a ustring 
+          -// from a null-terminated 8-bit-wide ansi string
+          -static void _vmsettings_setustringfromascii(ustring& t, const char* s) {
+          -	t.clear();
+          -	size_t l = strlen(s);
+          -	if (l > MAXASCIISTR) {
+          -		l = MAXASCIISTR; }
+          -	while (l>0) {
+          -		t.push_back((jchar)(*s));
+          -		s++;
+          -		l--; } }
+          -		
+          -// Utility for use by C layers speaking 8-bit--returns true if 
+          -//  there is a key at k, and its value equals cmp
+          -static bool _key_equals(const char* k, const char* cmp) {
+          -	ustring ks, cmps, vs;
+          -	_vmsettings_setustringfromascii(ks, k);
+          -	_vmsettings_setustringfromascii(cmps, cmp);
+          +// Init--makes sure read gets done
+          +static void vmsettings_init() {
+          +	if (initialized) return;
+          +	initialized = true;
+          +	FILE* f = fopen(fname, "rb");
+          +	if (!f) return;                  // Valid on first run
+          +	unsigned n = 0;
+          +	if (fread(&n, sizeof(n), 1, f) == 1 && n <= MAXENTRIES) {
+          +		for (; n > 0; --n) {
+          +			jchar *k, *v; unsigned kl, vl;
+          +			if (!read_str(f, &k, &kl)) break;
+          +			if (!read_str(f, &v, &vl)) { free(k); break; }
+          +			put(k, kl, v, vl);
+          +			free(k); free(v); } }
+          +	fclose(f); }
+          +
+          +// ASCII (8-bit, as used by the C layers) -> jchar buffer, capped like the original
+          +static const unsigned MAXASCIISTR = 1024;
+          +static unsigned widen(jchar* dst, const char* s) {
+          +	unsigned l = (unsigned)strlen(s);
+          +	if (l > MAXASCIISTR) l = MAXASCIISTR;
+          +	for (unsigned i = 0; i < l; i++) dst[i] = (jchar)(unsigned char)s[i];
+          +	return l; }
+          +
+          +// Utility for the C layers: true if there is a key at k, and its value equals cmpstr
+          +static bool _key_equals(const char* k, const char* cmpstr) {
+          +	jchar ks[MAXASCIISTR], cs[MAXASCIISTR];
+          +	unsigned kl = widen(ks, k), cl = widen(cs, cmpstr);
+           	vmsettings_init();
+          -	ustringmap::iterator i = properties.find(ks);
+          -	if (i==properties.end()) {
+          -		// No such value.
+          -		return false; }
+          -	return (i->second)==cmps; }
+          -	
+          -// Translate utf-16 value to ansii (naively... good for numerics)
+          -static void _vmsettings_ustringtostring(const ustring& u, string& s) {
+          -	size_t sz = u.length();
+          -	s.clear();
+          -	for(size_t i = 0; i<sz; i++) {
+          -		s.push_back((char)u[i]); } }
+          -		
+          -// Return an int (or default d), interpreting value for key k as radix 10 integer
+          +	bool found;
+          +	unsigned ix = lookup(ks, kl, &found);
+          +	if (!found) return false;
+          +	return cmp(entries[ix].v, entries[ix].vl, cs, cl) == 0; }
+          +
+          +// Return an int (or default d), interpreting value for key k as an integer (%i: dec/hex/octal)
+           static int _vmsettings_getint(const char* k, int d) {
+          -	ustring ks;
+          -	_vmsettings_setustringfromascii(ks, k);
+          +	jchar ks[MAXASCIISTR];
+          +	unsigned kl = widen(ks, k);
+           	vmsettings_init();
+          -	ustringmap::iterator i = properties.find(ks);
+          -	if (i==properties.end()) {
+          -		return d; }
+          -	string v;
+          -	_vmsettings_ustringtostring(i->second, v);
+          +	bool found;
+          +	unsigned ix = lookup(ks, kl, &found);
+          +	if (!found) return d;
+          +	char buf[256];
+          +	unsigned n = entries[ix].vl < sizeof(buf) - 1 ? entries[ix].vl : (unsigned)sizeof(buf) - 1;
+          +	for (unsigned i = 0; i < n; i++) buf[i] = (char)entries[ix].v[i];   // naive narrowing, fine for numerics
+          +	buf[n] = 0;
+           	int r;
+          -	if (sscanf(v.c_str(), "%i", &r)!=1) {
+          -		return d; }
+          +	if (sscanf(buf, "%i", &r) != 1) return d;
+           	return r; }
+           
+          -// Get an integer or default (if there's no such key or it
+          -// doesn't parse as an int)
+          -int vmsettings_getint(const char* k, int d) {
+          -	return _vmsettings_getint(k, d); }
+          -
+          -// Returns true if value v exists for key k and v equals cmp	
+          -int vmsettings_key_equals(const char* k, const char* cmp) {
+          -	return (_key_equals(k, cmp) ? 1 : 0); }
+          -	
+          +int vmsettings_getint(const char* k, int d) { return _vmsettings_getint(k, d); }
+          +int vmsettings_key_equals(const char* k, const char* cmpstr) { return _key_equals(k, cmpstr) ? 1 : 0; }
+          +
+           // External (C) set
+           extern "C" void vmsettings_set(const jchar* k, unsigned int kl,
+           	const jchar* v, unsigned int vl) {
+          -		_vmsettings_set(k, kl, v, vl); }
+          -		
+          +		vmsettings_init();
+          +		put(k, kl, v, vl);
+          +		modified = true; }
+          +
+           // External (C) get
+           extern "C" void vmsettings_get(const jchar* k, unsigned int kl,
+           	const jchar** v, unsigned int* vl) {
+          -		_vmsettings_get(k, kl, v, vl); }
+          +		vmsettings_init();
+          +		bool found;
+          +		unsigned ix = lookup(k, kl, &found);
+          +		if (!found) {
+          +			// No such value. Return empty string
+          +			*vl = 0;
+          +			return; }
+          +		*v = entries[ix].vl ? entries[ix].v : emptystr;
+          +		*vl = entries[ix].vl; }
+           
+           // External (C) commit
+           extern "C" void vmsettings_commit() {
+          -	if (!initialized) {
+          -		// No one's even read this
+          -		return; }
+          -	if (!modified) {
+          -		// Not modified
+          -		return; }
+          -	ofstream o(fname);
+          -	write(o, properties);
+          +	if (!initialized) return;        // No one's even read this
+          +	if (!modified) return;           // Not modified
+          +	FILE* f = fopen(fname, "wb");
+          +	if (!f) return;
+          +	fwrite(&ecount, sizeof(ecount), 1, f);
+          +	for (unsigned i = 0; i < ecount; i++) {
+          +		write_str(f, entries[i].k, entries[i].kl);
+          +		write_str(f, entries[i].v, entries[i].vl); }
+          +	fclose(f);
+           	modified = false; }
+          diff -ruN -x .github -x README.md orig/ios/Info.plist ioskvm-master/ios/Info.plist
+          --- orig/ios/Info.plist	2026-11-08 21:39:57.701190071 +0000
+          +++ ioskvm-master/ios/Info.plist	2026-11-08 21:39:59.155000905 +0000
+          @@ -14,7 +14,7 @@
+            <key>CFBundleExecutable</key><string>pspkvm</string>
+            <key>CFBundleVersion</key><string>1</string>
+            <key>CFBundleShortVersionString</key><string>0.1</string>
+          - <key>MinimumOSVersion</key><string>7.0</string>
+          + <key>MinimumOSVersion</key><string>5.0</string>
+            <key>UIRequiredDeviceCapabilities</key><array><string>armv7</string></array>
+            <key>UIStatusBarHidden</key><true/>
+            <key>UIFileSharingEnabled</key><true/>
+          diff -ruN -x .github -x README.md orig/ios/KVMAppDelegate.m ioskvm-master/ios/KVMAppDelegate.m
+          --- orig/ios/KVMAppDelegate.m	2026-11-08 21:39:57.701332954 +0000
+          +++ ioskvm-master/ios/KVMAppDelegate.m	2026-11-09 10:01:33.004493211 +0000
+          @@ -18,7 +18,12 @@
+               [self.view addSubview:_screen];
+               [self.view addSubview:_pad];
+           }
+          -- (BOOL)prefersStatusBarHidden { return YES; }
+          +- (BOOL)prefersStatusBarHidden { return YES; }                       // iOS 7+ (iOS 5/6 use UIStatusBarHidden in Info.plist)
+          +// iOS 5 only knows this callback; iOS 6+ ignore it in favour of the two methods below.
+          +#pragma clang diagnostic push
+          +#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+          +- (BOOL)shouldAutorotateToInterfaceOrientation:(UIInterfaceOrientation)o { return YES; }
+          +#pragma clang diagnostic pop
+           - (UIInterfaceOrientationMask)supportedInterfaceOrientations { return UIInterfaceOrientationMaskAll; }
+           - (BOOL)shouldAutorotate { return YES; }
+           - (void)viewDidLayoutSubviews {
+          diff -ruN -x .github -x README.md orig/ios/KVMBridge.m ioskvm-master/ios/KVMBridge.m
+          --- orig/ios/KVMBridge.m	2026-11-08 21:39:57.701407463 +0000
+          +++ ioskvm-master/ios/KVMBridge.m	2026-11-09 10:01:33.004718282 +0000
+          @@ -53,7 +53,7 @@
+           
+           static NSString* prepareSandbox(void) {
+               NSFileManager* fm = [NSFileManager defaultManager];
+          -    NSString* docs = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES)[0];
+          +    NSString* docs = [NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES) objectAtIndex:0];
+               NSString* root = [docs stringByAppendingPathComponent:@"pspkvm"];
+               [fm createDirectoryAtPath:root withIntermediateDirectories:YES attributes:nil error:nil];
+           
+          diff -ruN -x .github -x README.md orig/ios/KVMCompilerRT.c ioskvm-master/ios/KVMCompilerRT.c
+          --- orig/ios/KVMCompilerRT.c	1970-01-01 00:00:00.000000000 +0000
+          +++ ioskvm-master/ios/KVMCompilerRT.c	2026-11-09 10:01:57.765088333 +0000
+          @@ -0,0 +1,130 @@
+          +/*
+          + * Integer / int<->float helpers normally supplied by compiler-rt (libgcc).
+          + *
+          + * The vanilla-clang toolchain ships no libclang_rt for iOS, so these symbols end up imported from
+          + * libSystem. iOS 7 happens to export them; iOS 5 does not -> "Symbol not found: ___udivdi3" at launch.
+          + * Defining them here makes the binary self-contained.
+          + *
+          + * Rules for this file: never use 32/64-bit '/' '%' or 64-bit<->float casts (the compiler would
+          + * lower them to calls to the very functions defined below). Only 32-bit<->double conversions,
+          + * 64-bit add/sub/shift/compare (all inline on ARM) and __builtin_clz (32-bit) are used.
+          + * Host test: ios/tests/compilerrt_test.c
+          + */
+          +#include <stdint.h>
+          +
+          +#ifdef KVM_RT_TEST
+          +#define RT(n) kvmrt_##n
+          +#define RT_ATTR
+          +#else
+          +#define RT(n) n
+          +#define RT_ATTR __attribute__((visibility("hidden")))
+          +#endif
+          +
+          +#define TWO32 4294967296.0
+          +
+          +/* 32-bit unsigned division. A double holds every 32-bit integer and the quotient of two of them
+          + * floors exactly (a/b is never within 2^-53 relative of an integer unless it is one). */
+          +static inline uint32_t udiv32(uint32_t a, uint32_t b) {
+          +    return (uint32_t)((double)a / (double)b);
+          +}
+          +
+          +static inline int clz64(uint64_t v) {
+          +    uint32_t hi = (uint32_t)(v >> 32);
+          +    return hi ? __builtin_clz(hi) : 32 + __builtin_clz((uint32_t)v);   /* v != 0 */
+          +}
+          +
+          +/* Restoring division with the leading zero bits skipped. d != 0. */
+          +static uint64_t udivmod64(uint64_t n, uint64_t d, uint64_t* rem) {
+          +    if (n < d) { if (rem) *rem = n; return 0; }
+          +    if ((n >> 32) == 0) {                         /* both fit in 32 bits */
+          +        uint32_t a = (uint32_t)n, b = (uint32_t)d, q = udiv32(a, b);
+          +        if (rem) *rem = a - q * b;
+          +        return q;
+          +    }
+          +    int s = clz64(d) - clz64(n);                  /* >= 0 because n >= d */
+          +    uint64_t q = 0, r = n;
+          +    d <<= s;
+          +    for (int i = 0; i <= s; i++) {
+          +        q <<= 1;
+          +        if (r >= d) { r -= d; q |= 1; }
+          +        d >>= 1;
+          +    }
+          +    if (rem) *rem = r;
+          +    return q;
+          +}
+          +
+          +/* ---- 32-bit ---- */
+          +RT_ATTR uint32_t RT(__udivsi3)(uint32_t a, uint32_t b) { return b ? udiv32(a, b) : 0; }
+          +RT_ATTR uint32_t RT(__umodsi3)(uint32_t a, uint32_t b) { return b ? a - udiv32(a, b) * b : 0; }
+          +RT_ATTR int32_t RT(__divsi3)(int32_t a, int32_t b) {
+          +    uint32_t ua = a < 0 ? 0u - (uint32_t)a : (uint32_t)a;
+          +    uint32_t ub = b < 0 ? 0u - (uint32_t)b : (uint32_t)b;
+          +    uint32_t q = ub ? udiv32(ua, ub) : 0;
+          +    return (int32_t)((a < 0) != (b < 0) ? 0u - q : q);
+          +}
+          +RT_ATTR int32_t RT(__modsi3)(int32_t a, int32_t b) {
+          +    uint32_t ua = a < 0 ? 0u - (uint32_t)a : (uint32_t)a;
+          +    uint32_t ub = b < 0 ? 0u - (uint32_t)b : (uint32_t)b;
+          +    uint32_t r = ub ? ua - udiv32(ua, ub) * ub : 0;
+          +    return (int32_t)(a < 0 ? 0u - r : r);
+          +}
+          +
+          +/* ---- 64-bit ---- */
+          +RT_ATTR uint64_t RT(__udivdi3)(uint64_t a, uint64_t b) { return b ? udivmod64(a, b, 0) : 0; }
+          +RT_ATTR uint64_t RT(__umoddi3)(uint64_t a, uint64_t b) {
+          +    uint64_t r = 0; if (b) udivmod64(a, b, &r); return r;
+          +}
+          +RT_ATTR int64_t RT(__divdi3)(int64_t a, int64_t b) {
+          +    uint64_t ua = a < 0 ? 0 - (uint64_t)a : (uint64_t)a;
+          +    uint64_t ub = b < 0 ? 0 - (uint64_t)b : (uint64_t)b;
+          +    uint64_t q = ub ? udivmod64(ua, ub, 0) : 0;
+          +    return (int64_t)((a < 0) != (b < 0) ? 0 - q : q);
+          +}
+          +RT_ATTR int64_t RT(__moddi3)(int64_t a, int64_t b) {
+          +    uint64_t ua = a < 0 ? 0 - (uint64_t)a : (uint64_t)a;
+          +    uint64_t ub = b < 0 ? 0 - (uint64_t)b : (uint64_t)b;
+          +    uint64_t r = 0; if (ub) udivmod64(ua, ub, &r);
+          +    return (int64_t)(a < 0 ? 0 - r : r);
+          +}
+          +
+          +/* ---- int64 -> floating point ---- */
+          +RT_ATTR double RT(__floatundidf)(uint64_t a) {
+          +    return (double)(uint32_t)(a >> 32) * TWO32 + (double)(uint32_t)a;       /* one rounding */
+          +}
+          +RT_ATTR double RT(__floatdidf)(int64_t a) {
+          +    return (double)(int32_t)(a >> 32) * TWO32 + (double)(uint32_t)a;
+          +}
+          +static float u64_to_float(uint64_t u) {                                      /* correctly rounded */
+          +    if (u == 0) return 0.0f;
+          +    int msb = 63 - clz64(u);
+          +    if (msb < 24) return (float)(uint32_t)u;
+          +    int sh = msb - 23;
+          +    uint64_t m = u >> sh, rem = u & ((1ULL << sh) - 1), half = 1ULL << (sh - 1);
+          +    if (rem > half || (rem == half && (m & 1))) m++;
+          +    union { uint32_t u; float f; } p; p.u = (uint32_t)(127 + sh) << 23;      /* 2^sh */
+          +    return (float)(uint32_t)m * p.f;
+          +}
+          +RT_ATTR float RT(__floatundisf)(uint64_t a) { return u64_to_float(a); }
+          +RT_ATTR float RT(__floatdisf)(int64_t a) {
+          +    return a < 0 ? -u64_to_float(0 - (uint64_t)a) : u64_to_float((uint64_t)a);
+          +}
+          +
+          +/* ---- floating point -> int64 (truncate; saturate; NaN -> 0) ---- */
+          +static uint64_t d_to_u64(double x) {            /* 0 <= x < 2^64 */
+          +    uint32_t hi = (uint32_t)(x * (1.0 / TWO32));
+          +    uint32_t lo = (uint32_t)(x - (double)hi * TWO32);
+          +    return ((uint64_t)hi << 32) | lo;
+          +}
+          +RT_ATTR uint64_t RT(__fixunsdfdi)(double x) {
+          +    if (!(x > 0.0)) return 0;
+          +    if (x >= 18446744073709551616.0) return ~(uint64_t)0;
+          +    return d_to_u64(x);
+          +}
+          +RT_ATTR int64_t RT(__fixdfdi)(double x) {
+          +    if (x != x) return 0;
+          +    if (x >= 9223372036854775808.0) return (int64_t)(((uint64_t)1 << 63) - 1);
+          +    if (x <= -9223372036854775808.0) return (int64_t)((uint64_t)1 << 63);
+          +    return x < 0 ? (int64_t)(0 - d_to_u64(-x)) : (int64_t)d_to_u64(x);
+          +}
+          +RT_ATTR uint64_t RT(__fixunssfdi)(float x) { return RT(__fixunsdfdi)((double)x); }
+          +RT_ATTR int64_t  RT(__fixsfdi)(float x)    { return RT(__fixdfdi)((double)x); }
+          diff -ruN -x .github -x README.md orig/ios/KVMLog.m ioskvm-master/ios/KVMLog.m
+          --- orig/ios/KVMLog.m	2026-11-08 21:39:57.701487138 +0000
+          +++ ioskvm-master/ios/KVMLog.m	2026-11-09 10:01:33.005058631 +0000
+          @@ -149,7 +149,7 @@
+               done = YES;
+           
+               gQ = dispatch_queue_create("pspkvm.log", DISPATCH_QUEUE_SERIAL);
+          -    NSString* docs = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES)[0];
+          +    NSString* docs = [NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES) objectAtIndex:0];
+               gLogDir  = [[docs stringByAppendingPathComponent:@"pspkvm"] stringByAppendingPathComponent:@"logs"];
+               gLogPath = [gLogDir stringByAppendingPathComponent:@"kvm.log"];
+               gPrevPath = [gLogDir stringByAppendingPathComponent:@"kvm.prev.log"];
+          @@ -170,7 +170,7 @@
+               struct utsname u; uname(&u);
+               NSDictionary* info = [[NSBundle mainBundle] infoDictionary];
+               UIDevice* d = [UIDevice currentDevice];
+          -    KVMLogf("init", @"==== PSPKVM %@ (build %@) ====", info[@"CFBundleShortVersionString"], info[@"CFBundleVersion"]);
+          +    KVMLogf("init", @"==== PSPKVM %@ (build %@) ====", [info objectForKey:@"CFBundleShortVersionString"], [info objectForKey:@"CFBundleVersion"]);
+               KVMLogf("init", @"device=%s iOS %@ screen=%.0fx%.0f@%.0fx", u.machine, d.systemVersion,
+                       [UIScreen mainScreen].bounds.size.width, [UIScreen mainScreen].bounds.size.height,
+                       [UIScreen mainScreen].scale);
+          diff -ruN -x .github -x README.md orig/ios/Makefile ioskvm-master/ios/Makefile
+          --- orig/ios/Makefile	2026-11-08 21:39:57.701748549 +0000
+          +++ ioskvm-master/ios/Makefile	2026-11-09 10:01:33.004265982 +0000
+          @@ -1,7 +1,13 @@
+           # Theos application (style follows caprice32ios/Makefile). Run ../build-ios-cldc.sh first.
+           export THEOS_DEVICE_IP =
+           ARCHS = armv7
+          -TARGET = iphone:clang:9.3:7.0
+          +# Single knob for the deployment target (also see Info.plist MinimumOSVersion).
+          +IOS_MIN ?= 5.0
+          +TARGET = iphone:clang:9.3:$(IOS_MIN)
+          +# Below iOS 7 link the GNU C++ runtime (libstdc++ exists on every iOS); libc++ only from 7.0 up.
+          +# Override with KVM_CXXLIB=c++ if you know the device has libc++.1.dylib.
+          +IOS_MIN_MAJOR = $(firstword $(subst ., ,$(IOS_MIN)))
+          +KVM_CXXLIB ?= $(shell test $(IOS_MIN_MAJOR) -lt 7 && echo stdc++ || echo c++)
+           INSTALL_TARGET_PROCESSES = pspkvm
+           export THEOS ?= /opt/theos
+           include $(THEOS)/makefiles/common.mk
+          @@ -12,14 +18,14 @@
+           KVM_LIBS  = $(KVM_DIST)/lib
+           
+           APPLICATION_NAME = pspkvm
+          -pspkvm_FILES = main.m KVMAppDelegate.m KVMBridge.m KVMLog.m KVMScreenView.m KVMPadView.m KVMShims.c
+          -ADDITIONAL_CFLAGS += -O2 -fno-stack-protector -fobjc-arc \
+          +pspkvm_FILES = main.m KVMAppDelegate.m KVMBridge.m KVMLog.m KVMScreenView.m KVMPadView.m KVMShims.c KVMCompilerRT.c
+          +ADDITIONAL_CFLAGS += -O2 -D_FORTIFY_SOURCE=0 -fno-stack-protector -fobjc-arc \
+           	-fno-modules -fno-cxx-modules -fno-implicit-modules -fno-implicit-module-maps \
+           	-Wno-error=objc-property-no-attribute -Wno-error=property-attribute-mismatch
+           pspkvm_CFLAGS = -DIOS -I$(SDK_ROOT)/usr/include \
+           	-I$(KVM_ROOT)/javacall/implementation/ios_arm/midp -I$(KVM_ROOT)/javacall/implementation/ios_arm
+           pspkvm_LDFLAGS = -L$(KVM_LIBS) -L$(SDK_ROOT)/usr/lib \
+          -	-lmidp -ljavacall -lcldc_vm -lpcsl_file -lpcsl_string -lpcsl_memory -lpcsl_network -lpcsl_print -lfreetype -lc++ \
+          +	-lmidp -ljavacall -lcldc_vm -lpcsl_file -lpcsl_string -lpcsl_memory -lpcsl_network -lpcsl_print -lfreetype -l$(KVM_CXXLIB) \
+           	-framework UIKit -framework Foundation -framework QuartzCore -framework CoreGraphics \
+           	-framework AVFoundation -framework CoreMedia -framework CoreVideo -framework AudioToolbox
+           pspkvm_CODESIGN_FLAGS =
+          diff -ruN -x .github -x README.md orig/ios/tests/compilerrt_test.c ioskvm-master/ios/tests/compilerrt_test.c
+          --- orig/ios/tests/compilerrt_test.c	1970-01-01 00:00:00.000000000 +0000
+          +++ ioskvm-master/ios/tests/compilerrt_test.c	2026-11-09 10:01:57.767839537 +0000
+          @@ -0,0 +1,26 @@
+          +/* Host test: gcc -O2 -DKVM_RT_TEST -I.. tests/compilerrt_test.c -o t && ./t */
+          +#include "../KVMCompilerRT.c"
+          +#include <stdio.h>
+          +#include <stdlib.h>
+          +#include <string.h>
+          +static uint64_t s=88172645463325252ULL;
+          +static uint64_t rnd(void){ s^=s<<13; s^=s>>7; s^=s<<17; return s; }
+          +static uint64_t pick(void){ uint64_t v=rnd(); int k=rnd()%4; return k==0?v:k==1?v>>(rnd()%64):k==2?(v>>(rnd()%64))|1:(uint64_t)(int64_t)(int32_t)v; }
+          +int main(void){ long bad=0;
+          + for(long i=0;i<3000000;i++){ uint64_t a=pick(),b=pick(); if(!b)b=1;
+          +  uint32_t a32=(uint32_t)a,b32=(uint32_t)b?(uint32_t)b:7;
+          +  if(kvmrt___udivsi3(a32,b32)!=a32/b32||kvmrt___umodsi3(a32,b32)!=a32%b32)bad++;
+          +  int32_t sa=(int32_t)a32,sb=(int32_t)b32; if(sb==-1)sb=3;
+          +  if(kvmrt___divsi3(sa,sb)!=sa/sb||kvmrt___modsi3(sa,sb)!=sa%sb)bad++;
+          +  if(kvmrt___udivdi3(a,b)!=a/b||kvmrt___umoddi3(a,b)!=a%b)bad++;
+          +  int64_t xa=(int64_t)a,xb=(int64_t)b; if(xb==-1)xb=5;
+          +  if(kvmrt___divdi3(xa,xb)!=xa/xb||kvmrt___moddi3(xa,xb)!=xa%xb)bad++;
+          +  if(kvmrt___floatdidf(xa)!=(double)xa||kvmrt___floatundidf(a)!=(double)a)bad++;
+          +  if(kvmrt___floatdisf(xa)!=(float)xa||kvmrt___floatundisf(a)!=(float)a)bad++;
+          +  double d=(double)(int64_t)rnd()/(double)(1ULL<<(rnd()%40)); if(d>-9.2e18&&d<9.2e18&&kvmrt___fixdfdi(d)!=(int64_t)d)bad++;
+          +  double u=(double)rnd()/(double)(1ULL<<(rnd()%30)); if(u<1.8e19&&kvmrt___fixunsdfdi(u)!=(uint64_t)u)bad++;
+          +  float f=(float)d; if(f>-9.2e18f&&f<9.2e18f&&kvmrt___fixsfdi(f)!=(int64_t)f)bad++;
+          + }
+          + if(kvmrt___divsi3(-2147483647-1,-1)!=-2147483647-1)bad++;
+          + if(kvmrt___divdi3(INT64_MIN,-1)!=INT64_MIN)bad++;
+          + printf("mismatches: %ld\n",bad); return bad!=0; }
+          diff -ruN -x .github -x README.md orig/javacall/implementation/ios_arm/jsr135_mmapi/avf_media.m ioskvm-master/javacall/implementation/ios_arm/jsr135_mmapi/avf_media.m
+          --- orig/javacall/implementation/ios_arm/jsr135_mmapi/avf_media.m	2026-11-08 21:39:57.707189881 +0000
+          +++ ioskvm-master/javacall/implementation/ios_arm/jsr135_mmapi/avf_media.m	2026-11-09 10:03:04.903871527 +0000
+          @@ -3,7 +3,8 @@
+            *
+            *  - audio/video (mp3, wav, aac, m4a, mp4, 3gp, mpeg...) : AVPlayer
+            *  - MIDI files                                          : AVAudioPlayer (system synth)
+          - *  - video frames: AVPlayerItemVideoOutput -> 32BGRA -> scaled (nearest) into the rectangle the
+          + *  - video frames: AVPlayerItemVideoOutput (iOS 6+) or, on iOS 5, an AVAssetReader following the
+          + *    player clock -> 32BGRA -> scaled (nearest) into the rectangle the
+            *    MIDlet asked for with VideoControl.setDisplayLocation/Size -> published as an overlay that
+            *    midp/lcd.c composites over the Java canvas (optionally only where the mask colour is).
+            *  - Java pushes the media bytes with javacall_media_do_buffering(); they are spooled into a temp
+          @@ -25,7 +26,28 @@
+           extern void javacall_printf(const char* format, ...);
+           
+           #define TIME_UNKNOWN (-1)
+          -/* -[NSString containsString:] only exists from iOS 8; we target iOS 7 */
+          +
+          +/* With a deployment target < iOS 6 libdispatch objects are plain C pointers (no ARC): manage them by hand. */
+          +#if OS_OBJECT_USE_OBJC
+          +#define KVM_DISPATCH_RETAIN(o)
+          +#define KVM_DISPATCH_RELEASE(o)
+          +#else
+          +#define KVM_DISPATCH_RETAIN(o)  dispatch_retain(o)
+          +#define KVM_DISPATCH_RELEASE(o) dispatch_release(o)
+          +#endif
+          +
+          +/* Runs an AVFoundation async call and waits for its completion block. The block owns one semaphore
+          + * reference, so a timeout cannot leave it dangling. Returns YES if it completed in time. */
+          +#define KVM_WAIT_ASYNC(secs, ASYNC_CALL_WITH_SIGNAL_BLOCK)                              \
+          +    ({ dispatch_semaphore_t kvm_sem = dispatch_semaphore_create(0);                     \
+          +       KVM_DISPATCH_RETAIN(kvm_sem);                                                    \
+          +       ASYNC_CALL_WITH_SIGNAL_BLOCK;                                                    \
+          +       long kvm_to = dispatch_semaphore_wait(kvm_sem,                                   \
+          +                         dispatch_time(DISPATCH_TIME_NOW, (int64_t)((secs) * (double)NSEC_PER_SEC))); \
+          +       KVM_DISPATCH_RELEASE(kvm_sem);                                                   \
+          +       (BOOL)(kvm_to == 0); })
+          +#define KVM_SIGNAL() do { dispatch_semaphore_signal(kvm_sem); KVM_DISPATCH_RELEASE(kvm_sem); } while (0)
+          +/* -[NSString containsString:] only exists from iOS 8; we target iOS 5 */
+           #define HAS(str, sub) ([(str) rangeOfString:(sub)].location != NSNotFound)
+           
+           @interface KVMMedia : NSObject <AVAudioPlayerDelegate>
+          @@ -38,10 +60,9 @@
+           @property (nonatomic, strong) AVURLAsset* asset;
+           @property (nonatomic, strong) AVPlayer* player;
+           @property (nonatomic, strong) AVPlayerItem* item;
+          -@property (nonatomic, strong) AVPlayerItemVideoOutput* vout;
+          +@property (nonatomic, strong) id vout;               // AVPlayerItemVideoOutput (iOS 6+), nil on iOS 5
+           @property (nonatomic, strong) AVAudioPlayer* ap;      // MIDI
+           @property (nonatomic, strong) id endObserver;
+          -@property (nonatomic, strong) dispatch_source_t timer;
+           @property (nonatomic) long durationMs;
+           @property (nonatomic) int vw, vh;
+           @property (nonatomic) float fps;
+          @@ -57,9 +78,17 @@
+           static BOOL g_maskOn = NO;
+           static AVAudioPlayer* g_tone = nil;
+           
+          -@implementation KVMMedia
+          +@implementation KVMMedia {
+          +    dispatch_source_t _timer;                        // manual lifetime when libdispatch isn't ObjC (iOS < 6)
+          +    // iOS 5 video path (no AVPlayerItemVideoOutput): decode with AVAssetReader, follow the player clock
+          +    NSLock* _rlock;
+          +    AVAssetReader* _reader;
+          +    AVAssetReaderTrackOutput* _rout;
+          +    CMSampleBufferRef _pendingSB;
+          +    double _readerPos;
+          +}
+           - (instancetype)init {
+          -    if ((self = [super init])) { _durationMs = TIME_UNKNOWN; _volume = 100; _rate = 100000; _fps = 25; }
+          +    if ((self = [super init])) { _durationMs = TIME_UNKNOWN; _volume = 100; _rate = 100000; _fps = 25; _rlock = [[NSLock alloc] init]; }
+               return self;
+           }
+           
+          @@ -103,8 +132,66 @@
+               pspkvm_ios_set_video_overlay((__bridge const void*)self, back, self.x, self.y, self.w, self.h);
+           }
+           
+          +// ---------- iOS 5 frame source: AVAssetReader ----------
+          +- (void)closeReaderLocked {
+          +    [_reader cancelReading];
+          +    _reader = nil; _rout = nil;
+          +    if (_pendingSB) { CFRelease(_pendingSB); _pendingSB = NULL; }
+          +}
+          +
+          +- (BOOL)restartReaderAt:(double)sec {                   // _rlock held
+          +    [self closeReaderLocked];
+          +    NSArray* vts = [self.asset tracksWithMediaType:AVMediaTypeVideo];
+          +    if (![vts count]) return NO;
+          +    NSError* err = nil;
+          +    AVAssetReader* r = [AVAssetReader assetReaderWithAsset:self.asset error:&err];
+          +    if (!r) { javacall_printf("[media] no asset reader (streamed asset?)\n"); return NO; }
+          +    NSDictionary* st = [NSDictionary dictionaryWithObject:[NSNumber numberWithInt:kCVPixelFormatType_32BGRA]
+          +                                                   forKey:(id)kCVPixelBufferPixelFormatTypeKey];
+          +    AVAssetReaderTrackOutput* o = [AVAssetReaderTrackOutput assetReaderTrackOutputWithTrack:[vts objectAtIndex:0]
+          +                                                                              outputSettings:st];
+          +    if (![r canAddOutput:o]) return NO;
+          +    [r addOutput:o];
+          +    if (sec > 0.0) r.timeRange = CMTimeRangeMake(CMTimeMakeWithSeconds(sec, 600), kCMTimePositiveInfinity);
+          +    if (![r startReading]) { javacall_printf("[media] reader start failed\n"); return NO; }
+          +    _reader = r; _rout = o; _readerPos = sec;
+          +    return YES;
+          +}
+          +
+          +/* Take every frame that is due at 'now' (keeping the newest). YES if lastPB changed. */
+          +- (BOOL)pullReaderFrameForTime:(double)now {
+          +    BOOL got = NO;
+          +    [_rlock lock];
+          +    if (!_reader || now + 0.05 < _readerPos || now > _readerPos + 2.0) {   // first call, seek back, big jump
+          +        if (![self restartReaderAt:now]) { [_rlock unlock]; return NO; }
+          +    }
+          +    for (int guard = 0; guard < 120; guard++) {
+          +        if (!_pendingSB) {
+          +            if (_reader.status != AVAssetReaderStatusReading) break;
+          +            _pendingSB = [_rout copyNextSampleBuffer];
+          +            if (!_pendingSB) break;                                         // end of stream
+          +        }
+          +        double pts = CMTimeGetSeconds(CMSampleBufferGetPresentationTimeStamp(_pendingSB));
+          +        if (pts > now + 0.001) break;                                       // not due yet
+          +        CVImageBufferRef ib = CMSampleBufferGetImageBuffer(_pendingSB);
+          +        if (ib) {
+          +            CVPixelBufferRetain(ib);
+          +            @synchronized (self) {
+          +                if (self.lastPB) CVPixelBufferRelease(self.lastPB);
+          +                self.lastPB = ib;
+          +            }
+          +            got = YES;
+          +        }
+          +        CFRelease(_pendingSB); _pendingSB = NULL;
+          +        _readerPos = pts;
+          +    }
+          +    [_rlock unlock];
+          +    if (got) { @synchronized (self) { [self publish]; } }
+          +    return got;
+          +}
+          +
+           - (void)startPump {
+          -    if (!self.isVideo || self.timer) return;
+          +    if (!self.isVideo || _timer) return;
+               dispatch_source_t t = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0,
+                                         dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0));
+               dispatch_source_set_timer(t, DISPATCH_TIME_NOW, 33 * NSEC_PER_MSEC, 5 * NSEC_PER_MSEC);
+          @@ -113,28 +200,53 @@
+                   KVMMedia* m = ws; if (!m) return;
+                   BOOL changed = NO;
+                   CMTime now = [m.item currentTime];
+          -        if ([m.vout hasNewPixelBufferForItemTime:now]) {
+          -            CVPixelBufferRef pb = [m.vout copyPixelBufferForItemTime:now itemTimeForDisplay:NULL];
+          -            if (pb) {
+          -                @synchronized (m) {
+          -                    if (m.lastPB) CVPixelBufferRelease(m.lastPB);
+          -                    m.lastPB = pb;
+          -                    [m publish];
+          +        if (m.vout) {                                                       // iOS 6+
+          +            if ([m.vout hasNewPixelBufferForItemTime:now]) {
+          +                CVPixelBufferRef pb = [m.vout copyPixelBufferForItemTime:now itemTimeForDisplay:NULL];
+          +                if (pb) {
+          +                    @synchronized (m) {
+          +                        if (m.lastPB) CVPixelBufferRelease(m.lastPB);
+          +                        m.lastPB = pb;
+          +                        [m publish];
+          +                    }
+          +                    changed = YES;
+                           }
+          -                changed = YES;
+                       }
+          -        } else if (m.needRescale) {
+          +        } else if (CMTIME_IS_NUMERIC(now)) {                                // iOS 5
+          +            changed = [m pullReaderFrameForTime:CMTimeGetSeconds(now)];
+          +        }
+          +        if (!changed && m.needRescale) {
+                       @synchronized (m) { m.needRescale = NO; [m publish]; }
+                       changed = YES;
+                   }
+                   if (changed) pspkvm_ios_lcd_refresh();
+               });
+               dispatch_resume(t);
+          -    self.timer = t;
+          +    _timer = t;
+           }
+           
+           - (void)stopPump {
+          -    if (self.timer) { dispatch_source_cancel(self.timer); self.timer = nil; }
+          +    if (_timer) { dispatch_source_cancel(_timer); KVM_DISPATCH_RELEASE(_timer); _timer = NULL; }
+          +}
+          +
+          +/* AVPlayer.volume / .muted only exist from iOS 7; before that use an audio mix on the item. */
+          +- (void)applyVolume {
+          +    float v = self.muted ? 0.0f : self.volume / 100.0f;
+          +    if ([self.player respondsToSelector:@selector(setVolume:)]) {
+          +        self.player.volume = self.volume / 100.0f;
+          +        if ([self.player respondsToSelector:@selector(setMuted:)]) self.player.muted = self.muted;
+          +        return;
+          +    }
+          +    if (!self.item) return;
+          +    NSMutableArray* params = [NSMutableArray array];
+          +    for (AVAssetTrack* t in [self.item.asset tracksWithMediaType:AVMediaTypeAudio]) {
+          +        AVMutableAudioMixInputParameters* p = [AVMutableAudioMixInputParameters audioMixInputParametersWithTrack:t];
+          +        [p setVolume:v atTime:kCMTimeZero];
+          +        [params addObject:p];
+          +    }
+          +    AVMutableAudioMix* mix = [AVMutableAudioMix audioMix];
+          +    mix.inputParameters = params;
+          +    self.item.audioMix = mix;
+           }
+           
+           - (void)removeOverlay {
+          @@ -154,10 +266,10 @@
+           // ---------- loading ----------
+           - (BOOL)prepareWithURL:(NSURL*)url timeout:(int)sec {
+               AVURLAsset* a = [AVURLAsset URLAssetWithURL:url options:nil];
+          -    dispatch_semaphore_t sem = dispatch_semaphore_create(0);
+          -    [a loadValuesAsynchronouslyForKeys:@[@"tracks", @"duration", @"playable"]
+          -                     completionHandler:^{ dispatch_semaphore_signal(sem); }];
+          -    if (dispatch_semaphore_wait(sem, dispatch_time(DISPATCH_TIME_NOW, (int64_t)sec * NSEC_PER_SEC))) {
+          +    NSArray* keys = [NSArray arrayWithObjects:@"tracks", @"duration", @"playable", nil];   // (commas would split macro args)
+          +    BOOL loaded = KVM_WAIT_ASYNC(sec, [a loadValuesAsynchronouslyForKeys:keys
+          +                                                          completionHandler:^{ KVM_SIGNAL(); }]);
+          +    if (!loaded) {
+                   javacall_printf("[media] timeout loading %s\n", url.absoluteString.UTF8String);
+                   return NO;
+               }
+          @@ -172,20 +284,24 @@
+               NSArray* vt = [a tracksWithMediaType:AVMediaTypeVideo];
+               self.isVideo = vt.count > 0;
+               if (self.isVideo) {
+          -        AVAssetTrack* t = vt[0];
+          +        AVAssetTrack* t = [vt objectAtIndex:0];
+                   CGSize sz = CGSizeApplyAffineTransform(t.naturalSize, t.preferredTransform);
+                   self.vw = (int)fabs(sz.width); self.vh = (int)fabs(sz.height);
+                   if (t.nominalFrameRate > 1.0f) self.fps = t.nominalFrameRate;
+               }
+               self.item = [AVPlayerItem playerItemWithAsset:a];
+               if (self.isVideo) {
+          -        self.vout = [[AVPlayerItemVideoOutput alloc] initWithPixelBufferAttributes:
+          -                     @{ (id)kCVPixelBufferPixelFormatTypeKey : @(kCVPixelFormatType_32BGRA) }];
+          -        [self.item addOutput:self.vout];
+          +        Class voc = NSClassFromString(@"AVPlayerItemVideoOutput");          // iOS 6+
+          +        if (voc && [self.item respondsToSelector:@selector(addOutput:)]) {
+          +            NSDictionary* attrs = [NSDictionary dictionaryWithObject:[NSNumber numberWithInt:kCVPixelFormatType_32BGRA]
+          +                                                              forKey:(id)kCVPixelBufferPixelFormatTypeKey];
+          +            id vo = [[voc alloc] initWithPixelBufferAttributes:attrs];
+          +            self.vout = vo;
+          +            [self.item addOutput:vo];
+          +        }                                                                    // else: AVAssetReader path
+               }
+               self.player = [AVPlayer playerWithPlayerItem:self.item];
+          -    self.player.volume = self.volume / 100.0f;
+          -    self.player.muted = self.muted;
+          +    [self applyVolume];
+               __weak KVMMedia* ws = self;
+               self.endObserver = [[NSNotificationCenter defaultCenter]
+                   addObserverForName:AVPlayerItemDidPlayToEndTimeNotification object:self.item queue:nil
+          @@ -212,6 +328,7 @@
+           
+           - (void)teardown {
+               [self stopPump];
+          +    [_rlock lock]; [self closeReaderLocked]; [_rlock unlock];
+               if (self.endObserver) { [[NSNotificationCenter defaultCenter] removeObserver:self.endObserver]; self.endObserver = nil; }
+               [self.player pause]; [self.ap stop];
+               [self removeOverlay];
+          @@ -376,11 +493,9 @@
+               if (ms < 0) ms = 0;
+               if (m.durationMs >= 0 && ms > m.durationMs) ms = m.durationMs;
+               if (m.isMidi) { m.ap.currentTime = ms / 1000.0; return ms; }
+          -    dispatch_semaphore_t sem = dispatch_semaphore_create(0);
+          -    [m.player seekToTime:CMTimeMakeWithSeconds(ms / 1000.0, 600)
+          -         toleranceBefore:kCMTimeZero toleranceAfter:kCMTimeZero
+          -       completionHandler:^(BOOL f) { dispatch_semaphore_signal(sem); }];
+          -    dispatch_semaphore_wait(sem, dispatch_time(DISPATCH_TIME_NOW, 3 * NSEC_PER_SEC));
+          +    KVM_WAIT_ASYNC(3, [m.player seekToTime:CMTimeMakeWithSeconds(ms / 1000.0, 600)
+          +                             toleranceBefore:kCMTimeZero toleranceAfter:kCMTimeZero
+          +                           completionHandler:^(BOOL f) { KVM_SIGNAL(); }]);
+               m.needRescale = YES;
+               return curMs(m);
+           }
+          @@ -395,7 +510,7 @@
+               KVMMedia* m = M(h); if (!m) return -1;
+               if (level < 0) level = 0; if (level > 100) level = 100;
+               m.volume = (int)level;
+          -    if (m.isMidi) m.ap.volume = level / 100.0f; else m.player.volume = level / 100.0f;
+          +    if (m.isMidi) m.ap.volume = level / 100.0f; else [m applyVolume];
+               return level;
+           }
+           
+          @@ -404,7 +519,7 @@
+           javacall_result javacall_media_set_mute(javacall_handle h, javacall_bool mute) {
+               KVMMedia* m = M(h); if (!m) return JAVACALL_FAIL;
+               m.muted = (mute == JAVACALL_TRUE);
+          -    if (m.isMidi) m.ap.volume = m.muted ? 0.0f : m.volume / 100.0f; else m.player.muted = m.muted;
+          +    if (m.isMidi) m.ap.volume = m.muted ? 0.0f : m.volume / 100.0f; else [m applyVolume];
+               return JAVACALL_OK;
+           }
+           
+          @@ -488,8 +603,8 @@
+               for (NSString* kv in [spec componentsSeparatedByString:@"&"]) {
+                   NSArray* p = [kv componentsSeparatedByString:@"="];
+                   if (p.count == 2) {
+          -            if ([p[0] isEqualToString:@"width"])  tw = [p[1] intValue];
+          -            if ([p[0] isEqualToString:@"height"]) th = [p[1] intValue];
+          +            if ([[p objectAtIndex:0] isEqualToString:@"width"])  tw = [[p objectAtIndex:1] intValue];
+          +            if ([[p objectAtIndex:0] isEqualToString:@"height"]) th = [[p objectAtIndex:1] intValue];
+                   }
+               }
+               AVAssetImageGenerator* g = [[AVAssetImageGenerator alloc] initWithAsset:m.asset];
+          KVM_IOS5_PATCH_EOF
+          if grep -q "KVMCompilerRT.c" ios/Makefile; then
+            echo "iOS 5 port already present in the tree - skipping"
+          else
+            patch -p1 --no-backup-if-mismatch < /tmp/ios5-port.patch
+          fi
+          test -f ios/KVMCompilerRT.c && grep -q "armv7-apple-ios\$IOS_MIN" build-ios-cldc.sh \
+            && grep -q 'IOS_MIN:-5.0' build-ios-cldc.sh || { echo "::error::iOS 5 patch did not apply"; exit 1; }
+          echo "iOS 5 port applied"
 
       - name: Fix startup crash (strcpy(sec, sec) -> abort in __strcpy_chk)
         run: |
@@ -2105,11 +3100,28 @@ jobs:
             -isysroot "$THEOS/sdks/iPhoneOS9.3.sdk" \
             -c /tmp/target_check.c -o /tmp/target_check.o
           file /tmp/target_check.o || true
-          # Fail fast if the object doesn't carry the 7.0 deployment target.
+          # Fail fast if the object doesn't carry the 5.0 deployment target.
           if command -v otool >/dev/null 2>&1; then
             otool -l /tmp/target_check.o | grep -A3 -E 'LC_VERSION_MIN|LC_BUILD_VERSION' || true
           fi
 
+
+      - name: Host tests for the iOS 5 shims (compiler-rt helpers, STL-free settings store)
+        run: |
+          gcc -O2 -DKVM_RT_TEST -Wall ios/tests/compilerrt_test.c -o /tmp/rt_test && /tmp/rt_test
+
+      - name: Ensure libarclite exists (ARC with deployment target < 6 makes clang force-load it)
+        env:
+          THEOS: ${{ github.workspace }}/theos
+        run: |
+          # The code base uses no container subscripting, so an empty archive is enough.
+          D="$THEOS/toolchain/linux/iphone/lib/arc"; F="$D/libarclite_iphoneos.a"
+          if [ ! -f "$F" ]; then
+            mkdir -p "$D"; echo 'int kvm_arclite_stub;' > /tmp/arc.c
+            "$IOS_CC" $IOS_TARGET_FLAGS -c /tmp/arc.c -o /tmp/arc.o
+            "$IOS_AR" rcs "$F" /tmp/arc.o
+            echo "created stub $F"
+          fi
 
       - name: Prepare staging dirs
         run: mkdir -p "$IOS_STAGE"/{lib,include}
@@ -2142,7 +3154,7 @@ jobs:
           CC="$IOS_CC" \
           AR="$IOS_AR" \
           RANLIB=: \
-          CFLAGS="$IOS_TARGET_FLAGS" \
+          CFLAGS="$IOS_TARGET_FLAGS -O2 -D_FORTIFY_SOURCE=0" \
           LDFLAGS="$IOS_TARGET_FLAGS" \
           ./configure --host=arm-apple-darwin --disable-shared --enable-static \
                       --without-harfbuzz --without-bzip2 --without-brotli \
@@ -2196,7 +3208,7 @@ jobs:
           make -f Makefile package FINALPACKAGE=1 SDK_ROOT="$SDK_ROOT" V=1
           ls -la packages
 
-      - name: Check binary for symbols missing on iOS 7
+      - name: Check binary for things iOS 5 cannot load
         run: |
           BIN="$(find ios/.theos -type f -name pspkvm | head -n1)"
           TOOLBIN="$THEOS/toolchain/linux/iphone/bin"
@@ -2204,11 +3216,16 @@ jobs:
           [ -z "$NM" ] && NM="$(command -v llvm-nm || command -v nm)"
           "$NM" -u "$BIN" > /tmp/undef.txt 2>/dev/null || true
           echo "undefined symbols: $(wc -l < /tmp/undef.txt)"
-          grep -E "AVAudioSession|AVPlayerItemVideoOutput|UIAlertController|__isPlatformVersionAtLeast|nativeScale" /tmp/undef.txt || echo "(none suspicious)"
-          echo "--- compiler-rt helpers imported (resolved from libSystem on iOS 7; WL4 needed a shim only for iOS 5):"
-          grep -E "^___(u?div|u?mod|float|fix)" /tmp/undef.txt || echo "none"
-          if grep -E "_OBJC_CLASS_\$_(UIAlertController|CAMetalLayer|UIStackView|UIVisualEffectView)" /tmp/undef.txt; then
-            echo "::error::Binary strongly imports a class absent on iOS 7"; exit 1
+          echo "--- compiler-rt helpers still imported (must be none; KVMCompilerRT.c defines them):"
+          grep -E "^ *_?___(u?div|u?mod|float|fix|clz|ctz|ashl|ashr|lshr|cmp|ucmp)" /tmp/undef.txt || echo none
+          # libSystem/libc symbols newer than iOS 5, strong ObjC classes newer than iOS 5, STL
+          BAD='_clock_gettime|_clock_gettime_nsec_np|_getentropy|_os_unfair_lock|_memset_s|___tlv_bootstrap|___isPlatformVersionAtLeast|___isOSVersionAtLeast|___availability_version_check|_fdopendir|_openat|_fstatat|_futimens|_utimensat|_timespec_get|_aligned_alloc|_pthread_threadid_np|__ZNSt3__1|_OBJC_CLASS_\$_(UIAlertController|UIStackView|UIVisualEffectView|CAMetalLayer|AVPlayerItemVideoOutput|UIActivityViewController)'
+          if grep -E "$BAD" /tmp/undef.txt; then echo "::error::binary imports symbols missing on iOS 5"; exit 1; fi
+          echo "--- load commands (iOS 5 dyld rejects LC_MAIN / chained fixups):"
+          if command -v otool >/dev/null 2>&1; then LC="$(otool -l "$BIN")"; else LC="$("$TOOLBIN"/llvm-objdump --macho --private-headers "$BIN" 2>/dev/null || true)"; fi
+          echo "$LC" | grep -E "LC_MAIN|LC_UNIXTHREAD|LC_VERSION_MIN|LC_BUILD_VERSION|LC_DYLD_CHAINED_FIXUPS|LC_DYLD_EXPORTS_TRIE|minos|version " | head -20 || true
+          if echo "$LC" | grep -E "LC_MAIN|LC_DYLD_CHAINED_FIXUPS|LC_DYLD_EXPORTS_TRIE"; then
+            echo "::error::Mach-O uses load commands unknown to iOS 5 dyld - the linker is not honouring the 5.0 target"; exit 1
           fi
 
       - name: Pack .ipa
@@ -2218,12 +3235,12 @@ jobs:
           [ -f "$APP_DIR/Info.plist" ] || { echo "::error::$APP_DIR/Info.plist missing"; exit 1; }
           [ -x "$APP_DIR/pspkvm" ] || { echo "::error::$APP_DIR/pspkvm missing"; exit 1; }
           cp -a "$APP_DIR" ipa_build/Payload/
-          (cd ipa_build && zip -rq ../ios/packages/PSPKVM-${{ steps.commit-info.outputs.hash }}-armv7-iOS7.ipa Payload)
+          (cd ipa_build && zip -rq ../ios/packages/PSPKVM-${{ steps.commit-info.outputs.hash }}-armv7-iOS5.ipa Payload)
 
       - name: Upload
         uses: actions/upload-artifact@v4
         with:
-          name: PSPKVM-armv7-iOS7-${{ steps.commit-info.outputs.hash }}
+          name: PSPKVM-armv7-iOS5-${{ steps.commit-info.outputs.hash }}
           path: |
             ios/packages/*.ipa
             ios/packages/*.deb
